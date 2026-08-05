@@ -74,7 +74,14 @@ Sapphire USA
 
 Upstream `run_game` owns the playable window (SDL2), audio device, and keyboard mapping during native boot. gen3recomp SDL3 audio/input modules stay available for the null backend and for a later steppable unwrap.
 
-Without a locally generated BIOS recompilation linked into gba-recomp, upstream uses BIOS HLE and skips the Nintendo logo intro. Title-screen boot still uses the same host path. To keep the real intro, generate BIOS sources locally with upstream `gba_recompile --bios` and rebuild; do not commit those files.
+Without a locally generated BIOS recompilation linked into gba-recomp, upstream forces BIOS HLE and skips the Nintendo logo intro. Emerald often stays on a white screen in that mode. Generate BIOS sources locally, rebuild, then relaunch:
+
+```sh
+./scripts/recompile_user_bios.sh ./gba_bios.bin
+cmake -S . -B build && cmake --build build
+```
+
+Do not commit those generated files. If a previous self-heal cache looks stuck, delete `~/.local/share/gen3recomp/recomp_cache/<sha1>/` and try again.
 
 Do not use upstream `--frames --no-window` for acceptance; that path currently aborts in the pin. Launch the windowed binary instead.
 

@@ -5,6 +5,7 @@
 #endif
 
 #include <cstdlib>
+#include <fstream>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <vector>
@@ -18,6 +19,45 @@ void set_env(const char* key, const char* value) {
 #else
     setenv(key, value, 1);
 #endif
+}
+
+std::string toml_escape(const std::string& value) {
+    std::string out;
+    out.reserve(value.size());
+    for (char ch : value) {
+        if (ch == '\\' || ch == '"') {
+            out.push_back('\\');
+        }
+        out.push_back(ch);
+    }
+    return out;
+}
+
+bool write_game_config(
+    const std::filesystem::path& path,
+    const std::filesystem::path& rom_path,
+    const std::filesystem::path& bios_path,
+    const std::filesystem::path& save_path,
+    const GameDefinition& game) {
+    std::ofstream out{path, std::ios::trunc};
+    if (!out) {
+        return false;
+    }
+    out << "[game]\n"
+        << "name = \"" << toml_escape(game.display_name) << "\"\n"
+        << "short_name = \"" << toml_escape(game.id) << "\"\n\n"
+        << "[rom]\n"
+        << "path = \"" << toml_escape(rom_path.string()) << "\"\n"
+        << "sha1 = \"" << game.sha1 << "\"\n\n"
+        << "[bios]\n"
+        << "path = \"" << toml_escape(bios_path.string()) << "\"\n"
+        << "hle = false\n\n"
+        << "[save]\n"
+        << "path = \"" << toml_escape(save_path.string()) << "\"\n"
+        << "type = \"" << toml_escape(game.save_family) << "\"\n\n"
+        << "[runtime]\n"
+        << "window_title = \"gen3recomp — " << toml_escape(game.display_name) << "\"\n";
+    return static_cast<bool>(out);
 }
 
 }  // namespace
@@ -48,13 +88,26 @@ bool GbaSessionBackend::start() {
         rom_path_.string(),
         bios_path_.string());
 
+    const auto config_path = cache_dir_ / "game.toml";
+    if (!write_game_config(config_path, rom_path_, bios_path_, save_path_, game_)) {
+        spdlog::error("failed to write {}", config_path.string());
+        started_ = false;
+        return false;
+    }
+
     std::error_code cwd_error;
     const auto previous_cwd = std::filesystem::current_path(cwd_error);
     const auto user_root = cache_dir_.parent_path().parent_path();
     std::filesystem::current_path(user_root, cwd_error);
 
     set_env("GBARECOMP_NO_LAUNCHER", "1");
-    if (std::getenv("GEN3RECOMP_DISABLE_SELFHEAL") != nullptr) {
+    set_env("GBARECOMP_PRESENT_IN_PLACE", "0");
+    if (!game_.save_family.empty()) {
+        set_env("GBARECOMP_SAVE_TYPE", game_.save_family.c_str());
+    }
+    if (std::getenv("GEN3RECOMP_SELFHEAL") != nullptr) {
+        set_env("GBARECOMP_SELFHEAL_RECOMPILE", "1");
+    } else if (std::getenv("GEN3RECOMP_DISABLE_SELFHEAL") != nullptr) {
         unsetenv("GBARECOMP_SELFHEAL_RECOMPILE");
     } else {
         set_env("GBARECOMP_SELFHEAL_RECOMPILE", "1");
@@ -62,6 +115,8 @@ bool GbaSessionBackend::start() {
 
     std::vector<std::string> args{
         "gen3recomp",
+        "--config",
+        config_path.string(),
         "--rom",
         rom_path_.string(),
         "--bios",
@@ -70,6 +125,7 @@ bool GbaSessionBackend::start() {
         save_path_.string(),
         "--scale",
         "4",
+        "--no-bios-hle",
     };
     if (const char* frames = std::getenv("GEN3RECOMP_HEADLESS_FRAMES");
         frames != nullptr && *frames != '\0' && std::string{frames} != "0") {
@@ -87,6 +143,7 @@ bool GbaSessionBackend::start() {
     opts.builtin_rom_sha1 = game_.sha1.c_str();
     opts.launcher_save_path = save_path_.c_str();
 
+    spdlog::info("upstream config={} save_type={}", config_path.string(), game_.save_family);
     const int rc = gbarecomp::run_game(static_cast<int>(argv.size()), argv.data(), opts);
     if (!previous_cwd.empty()) {
         std::filesystem::current_path(previous_cwd, cwd_error);

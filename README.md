@@ -57,6 +57,15 @@ Same layout as gba-recomp defaults: arrows = D-pad, **X** = A, **Z** = B, **Ente
 
 Cartridge saves live under `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`. Save states are not part of the MVP.
 
+A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip). Generate one from your dump, then rebuild:
+
+```sh
+./scripts/recompile_user_bios.sh ./gba_bios.bin
+cmake -S . -B build && cmake --build build
+```
+
+Do not commit the generated BIOS sources.
+
 ## Intended user flow
 
 ```
