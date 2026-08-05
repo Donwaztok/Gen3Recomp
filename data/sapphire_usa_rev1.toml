@@ -1,0 +1,14 @@
+[program]
+name = "Pokémon Sapphire (USA, Rev 1)"
+id = "sapphire-usa-rev1"
+load_address = 0x08000000
+size = 0x01000000
+entry_pc = 0x080000C0
+speculative_literal_harvest = true
+aot_scan_start = 0x080000C0
+aot_scan_end = 0x08B00000
+static_resume_all = false
+codegen_shards = 64
+
+[identity]
+sha1 = "4722efb8cd45772ca32555b98fd3b9719f8e60a9"

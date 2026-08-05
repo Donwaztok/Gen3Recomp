@@ -1,4 +1,5 @@
 #include "gba_backend.hpp"
+#include "cart_artifact.hpp"
 
 #if defined(GEN3RECOMP_HAS_GBARECOMP)
 #include "runtime.h"
@@ -81,6 +82,7 @@ bool GbaSessionBackend::start() {
     return false;
 #else
     started_ = true;
+    log_cart_coverage(game_.sha1);
 #if defined(GEN3RECOMP_HAS_STATIC_CART)
     constexpr bool kStaticCart = true;
 #else

@@ -14,3 +14,9 @@ codegen_shards = 64
 
 [identity]
 sha1 = "f3ae088181bf583e55daf962a92bb46f4f1d07b7"
+
+# IWRAM overlays (observed bridged PCs under 0x0300…. with static cart AOT):
+# IRQ / m4a / AgbMain copies are not in the cart image at those addresses.
+# Keep GBARECOMP_RAM_OVERLAY_HEAL=1. Reviewed [[code_copy]] rows (runtime_start
+# + ROM source_start + size) can be added here once source ranges are confirmed;
+# do not invent source_start values.

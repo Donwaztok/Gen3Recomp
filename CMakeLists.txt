@@ -32,6 +32,13 @@ if(TARGET gbarecomp_runtime)
         ${CMAKE_DL_LIBS}
         pthread)
 endif()
+if(TARGET gen3recomp_cart_artifact)
+    get_target_property(_gen3_cart_loc gen3recomp_cart_artifact IMPORTED_LOCATION)
+    get_filename_component(_gen3_cart_dir "${_gen3_cart_loc}" DIRECTORY)
+    set_target_properties(gen3recomp PROPERTIES
+        BUILD_RPATH "${_gen3_cart_dir}"
+        INSTALL_RPATH "${_gen3_cart_dir}")
+endif()
 
 include(CTest)
 if(BUILD_TESTING)

@@ -6,16 +6,9 @@ The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). Th
 
 ## Status
 
-Milestone M08: catalogued USA dumps launch through the isolated gba-recomp adapter into upstream native execution. Emerald USA is the first acceptance title; Ruby and Sapphire use the same binary and path.
+Milestone M08 plus local full-cart AOT: catalogued USA dumps run through the gba-recomp adapter. Emerald is validated with static cart coverage; Ruby and Sapphire use the same host and scripts.
 
-The source of truth for what we will build is OpenSpec:
-
-- Start here: [openspec/README.md](openspec/README.md)
-- Vision: [openspec/product/vision.md](openspec/product/vision.md)
-- Architecture: [openspec/product/architecture.md](openspec/product/architecture.md)
-- Roadmap: [openspec/product/roadmap.md](openspec/product/roadmap.md)
-- Decisions: [openspec/product/decisions.md](openspec/product/decisions.md)
-- Manual boot checklist: [docs/manual-boot.md](docs/manual-boot.md)
+OpenSpec: [openspec/README.md](openspec/README.md) · [docs/manual-boot.md](docs/manual-boot.md)
 
 ## MVP titles
 
@@ -25,63 +18,58 @@ The source of truth for what we will build is OpenSpec:
 
 Later: FireRed and LeafGreen.
 
-## Quick start
+## ROMs and BIOS (local only)
 
-1. Install **SDL3** and **SDL2** (Arch/CachyOS: `sudo pacman -S sdl3 sdl2`).
-2. Clone with submodules (gba-recomp lives in `third_party/gbarecomp`):
+Place dumps anywhere; recommended layout (all `*.gba` / BIOS patterns are gitignored):
 
-```sh
-git clone --recurse-submodules <repo-url>
-# existing checkout:
-git submodule update --init --recursive
+```text
+roms/
+  Pokemon - Ruby Version (USA).gba
+  Pokemon - Sapphire Version (USA).gba
+  Pokemon - Emerald Version (USA, Europe).gba
+gba_bios.bin
 ```
 
-3. Build the host, then locally recompile **your** BIOS and ROM into native C++ (never committed), rebuild, and play:
+Never commit ROMs, BIOS, `generated/`, or `~/.local/share/gen3recomp/` artifacts.
+
+## Quick start (full-speed)
+
+1. Install **SDL3** and **SDL2** (Arch/CachyOS: `sudo pacman -S sdl3 sdl2`).
+2. Clone with submodules: `git submodule update --init --recursive`
+3. Build tools + BIOS AOT, then **one-time cart artifact**, then link the host:
 
 ```sh
 cmake -S . -B build
 cmake --build build --target gba_recompile gen3recomp
 ./scripts/recompile_user_bios.sh ./gba_bios.bin
-./scripts/recompile_user_rom.sh "./Pokemon - Emerald Version (USA, Europe).gba"
-cmake -S . -B build && cmake --build build -j"$(nproc)"
-./build/gen3recomp --rom "./Pokemon - Emerald Version (USA, Europe).gba" --bios ./gba_bios.bin
-ctest --test-dir build --output-on-failure
+./scripts/build_cart_artifact.sh "./roms/Pokemon - Emerald Version (USA, Europe).gba"
+# prints GEN3RECOMP_CART_ARTIFACT=.../libcart.so
+cmake -DGEN3RECOMP_CART_ARTIFACT="$HOME/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so" \
+  -S . -B build
+cmake --build build -j"$(nproc)" --target gen3recomp
+./build/gen3recomp --rom "./roms/Pokemon - Emerald Version (USA, Europe).gba" --bios ./gba_bios.bin
 ```
 
-`--rom` is required. A GBA BIOS is required via `--bios` or `./gba_bios.bin`.
+`--rom` is required. BIOS via `--bios` or `./gba_bios.bin`.
 
-Without the local cart corpus under `generated/rom/`, the binary falls back to runtime self-heal (cold areas compile on first visit and feel like a few FPS). Static AOT covers the whole dump so gameplay after the name screen is already native.
+**Dev shortcut:** `./scripts/recompile_user_rom.sh <rom>` writes `generated/rom/` and CMake can compile those shards into the exe (slow every clean build). Prefer the cart artifact for day-to-day host rebuilds.
 
-Supported MVP dumps (exact SHA-1, USA): Ruby, Sapphire, and Emerald. Sources: [data/catalog_sources.md](data/catalog_sources.md). Unknown dumps are rejected with the computed SHA-1.
+Without cart AOT, the binary uses empty cart dispatch + self-heal (cold ROM PCs feel like a few FPS). `--prepare` only warms heal cache for a frame window — optional diagnostic, not the product path.
+
+Supported MVP dumps (exact SHA-1): [data/catalog_sources.md](data/catalog_sources.md).
 
 ## Controls
 
-Same layout as gba-recomp defaults: arrows = D-pad, **X** = A, **Z** = B, **Enter** = Start, **Right Shift** = Select, **C** = L, **V** = R. Esc or Q quits.
+Arrows = D-pad, **X** = A, **Z** = B, **Enter** = Start, **Right Shift** = Select, **C** = L, **V** = R. Esc or Q quits.
 
-Cartridge saves live under `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`. Save states are not part of the MVP.
+Saves: `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`  
+Cart artifact: `~/.local/share/gen3recomp/cart_aot/<rom-sha1>/abi3-linux-x64/libcart.so`  
+IWRAM heal cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`
 
-A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`.
-
-IWRAM overlays (IRQ / m4a / AgbMain copies) still compile once into `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`. `--prepare` only walks a fixed frame count and is not a substitute for static cart AOT.
-
-Do not commit generated BIOS or ROM sources (`third_party/gbarecomp/src/runtime/generated_bios/`, `generated/rom/`).
-
-## Intended user flow
-
-```
-gen3recomp
-    → select a ROM
-    → validate SHA-1
-    → identify Ruby / Sapphire / Emerald
-    → run the recompiler provider
-    → start the runtime
-    → the game runs natively
-```
+Blank/white window: usually missing BIOS recomp or OpenGL RGB24 on NVIDIA/Wayland — keep `SDL_RENDER_DRIVER=software` (host default) and local BIOS AOT.
 
 ## License
 
-**PolyForm Noncommercial License 1.0.0** — the same license as [gba-recomp](https://github.com/mstan/gbarecomp).
-
-The source is public. Commercial use is not allowed. See [LICENSE](LICENSE) and [openspec/product/decisions.md](openspec/product/decisions.md) (D11).
+**PolyForm Noncommercial License 1.0.0** — same as [gba-recomp](https://github.com/mstan/gbarecomp). See [LICENSE](LICENSE).
 
 Exit codes: `0` success, `1` input error, `2` usage error.

@@ -1,26 +1,30 @@
 # Manual boot checklist
 
-MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald. Automate only stable seams; this checklist is the product gate.
+MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald at playable speed when static cart AOT is present.
 
 ## Prerequisites
 
-- A legally obtained USA dump of the title under test
-- A legally obtained GBA BIOS (`gba_bios.bin` or `--bios`)
-- Initialized gba-recomp submodule in `third_party/gbarecomp` (`git submodule update --init --recursive`)
-- SDL2 (upstream host window/audio/input) and SDL3 (gen3recomp null-backend / host modules)
+- USA dump(s) under `roms/` (recommended) or any path — `*.gba` is gitignored
+- GBA BIOS (`gba_bios.bin` or `--bios`)
+- `git submodule update --init --recursive`
+- SDL2 + SDL3
 
-## Build
+## Build (full-speed path)
 
 ```sh
 cmake -S . -B build
 cmake --build build --target gba_recompile gen3recomp
 ./scripts/recompile_user_bios.sh /path/to/gba_bios.bin
-./scripts/recompile_user_rom.sh /path/to/game.gba
-cmake -S . -B build && cmake --build build -j"$(nproc)"
+./scripts/build_cart_artifact.sh /path/to/game.gba
+cmake -DGEN3RECOMP_CART_ARTIFACT="$HOME/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so" \
+  -S . -B build
+cmake --build build -j"$(nproc)" --target gen3recomp
 ctest --test-dir build --output-on-failure
 ```
 
-Cart AOT writes `generated/rom/` (gitignored). Reconfigure after the first generation so CMake links the shards. Expect a multi-minute host compile.
+Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml` (auto-selected by ROM SHA-1).
+
+**Dev link mode:** `./scripts/recompile_user_rom.sh` → `generated/rom/` → reconfigure without `GEN3RECOMP_CART_ARTIFACT` (multi-minute compile into the exe).
 
 ## Launch
 
@@ -28,8 +32,17 @@ Cart AOT writes `generated/rom/` (gitignored). Reconfigure after the first gener
 ./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin
 ```
 
-Cartridge saves: `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`  
-Self-heal / IWRAM overlay cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`
+Expect log lines: `static_cart=true` and `cart coverage=linked-artifact` (or `linked-generated-rom`). IWRAM PCs (`0x0300….`) may still heal once into `recomp_cache/`.
+
+`--prepare` is optional/diagnostic only (self-heal warm-up). Do not use it as a substitute for cart AOT.
+
+## Paths
+
+| Kind | Location |
+|------|----------|
+| Cartridge save | `~/.local/share/gen3recomp/saves/<sha1>.sav` |
+| Cart AOT `.so` | `~/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so` |
+| IWRAM / heal DLLs | `~/.local/share/gen3recomp/recomp_cache/<sha1>/` |
 
 ## Controls
 
@@ -44,76 +57,50 @@ Self-heal / IWRAM overlay cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sh
 | V | R |
 | Esc or Q | Quit |
 
-Save states are not an MVP feature. Use in-game cartridge saves only.
-
 ## Results template
-
-Copy this block into a local note or PR description. Do not commit ROM dumps.
 
 ```
 Date:
 Host:
 Binary: gen3recomp
 gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
+Cart coverage: linked-artifact / linked-generated-rom / heal-only
 
 Emerald USA
-- SHA-1:
-- BIOS intro / HLE note:
+- SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
 - Title screen visible: yes/no
-- Audio heard: yes/no/muted
-- Input reaches title menu: yes/no
-- In-game save + reload: yes/no/skipped
+- Playable speed with static AOT: yes/no
+- IWRAM heal leftovers: yes/no
 
 Ruby USA
-- SHA-1:
-- Title screen visible: yes/no
-- In-game save + reload: yes/no/skipped
+- SHA-1: f28b6ffc97847e94a6c21a63cacf633ee5c8df1e
+- Title screen visible: yes/no/pending dump
 
 Sapphire USA
-- SHA-1:
-- Title screen visible: yes/no
-- In-game save + reload: yes/no/skipped
+- SHA-1: 3ccbbd45f8553c36463f13b938e833f652b793e4
+- Title screen visible: yes/no/pending dump
 ```
 
 ## Notes
 
-Upstream `run_game` owns the playable window (SDL2), audio device, and keyboard mapping during native boot. gen3recomp SDL3 audio/input modules stay available for the null backend and for a later steppable unwrap.
-
-Without a locally generated BIOS recompilation linked into gba-recomp, upstream forces BIOS HLE and skips the Nintendo logo intro. Emerald often stays on a white screen in that mode. Leave upstream present-in-place enabled (do not set `GBARECOMP_PRESENT_IN_PLACE=0`) so VBlank presents resume in-place instead of redispatching mid-function PCs. On NVIDIA/Wayland, SDL2 OpenGL may also present a solid white window even while the PPU is drawing the BIOS intro; gen3recomp defaults to the SDL software renderer (`SDL_RENDER_DRIVER=software`). Generate BIOS sources locally, rebuild, then relaunch:
-
-```sh
-./scripts/recompile_user_bios.sh ./gba_bios.bin
-./scripts/recompile_user_rom.sh /path/to/game.gba
-cmake -S . -B build && cmake --build build -j"$(nproc)"
-```
-
-Do not commit those generated files. If a previous self-heal cache looks stuck, delete `~/.local/share/gen3recomp/recomp_cache/<sha1>/` and try again.
-
-Do not use upstream `--frames --no-window` for acceptance; that path currently aborts in the pin. Launch the windowed binary instead.
+Upstream `run_game` owns the playable window (SDL2). Leave present-in-place enabled. Do not use `--frames --no-window` for acceptance.
 
 ## Local results (2026-08-05)
 
 ```
 Date: 2026-08-05
 Host: Linux
-Binary: gen3recomp
+Binary: gen3recomp (static cart linked)
 gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
+Cart coverage: linked-generated-rom (64 shards, kDispatchTableLen=137650)
 
 Emerald USA
 - SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
-- BIOS intro / HLE note: local BIOS recomp + `--no-bios-hle` (LLE intro); Flash1M; SDL software renderer shows Nintendo / Game Boy logos
-- Title screen visible: after logos → copyright → white fade → Pokémon logo; static cart AOT + IWRAM overlay heal
-- Audio heard: routed through upstream SDL2 host
-- Input reaches title menu: upstream keyboard map (X/Z/Enter/…)
-- In-game save + reload: save file keyed at ~/.local/share/gen3recomp/saves/<sha1>.sav; in-game round-trip is manual
+- BIOS intro / HLE note: local BIOS recomp + --no-bios-hle; Flash1M; SDL software
+- Title screen visible: yes (static_cart=true); IWRAM PCs healed (~62) under 0x0300….
+- Audio / input: upstream SDL2 host map
+- In-game save: ~/.local/share/gen3recomp/saves/<sha1>.sav
 
-Ruby USA
-- SHA-1: same host path / binary; dump not present on this machine
-- Title screen visible: pending local dump
-- In-game save + reload: pending
-
-Sapphire USA
-- SHA-1: same host path / binary; dump not present on this machine
-- Title screen visible: pending local dump
-- In-game save + reload: pending
+Ruby / Sapphire USA
+- AOT configs landed; boot pending local dumps
 ```

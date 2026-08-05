@@ -43,6 +43,8 @@ TEST_CASE("help prints usage and succeeds") {
     REQUIRE(result.message.find("--bios") != std::string::npos);
     REQUIRE(result.message.find("--version") != std::string::npos);
     REQUIRE(result.message.find("--prepare") != std::string::npos);
+    REQUIRE(result.message.find("diagnostic") != std::string::npos);
+    REQUIRE(result.message.find("build_cart_artifact") != std::string::npos);
     REQUIRE(result.message.find("Exit codes") != std::string::npos);
 }
 
