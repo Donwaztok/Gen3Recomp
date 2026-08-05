@@ -48,4 +48,5 @@ The source is public. Commercial use is not allowed. See [LICENSE](LICENSE) and 
 cmake -S . -B build
 cmake --build build
 ./build/gen3recomp --version
+ctest --test-dir build --output-on-failure
 ```
