@@ -48,5 +48,11 @@ The source is public. Commercial use is not allowed. See [LICENSE](LICENSE) and 
 cmake -S . -B build
 cmake --build build
 ./build/gen3recomp --version
+./build/gen3recomp --help
+./build/gen3recomp --rom /path/to/game.gba
 ctest --test-dir build --output-on-failure
 ```
+
+`--rom` is required in this milestone. A file picker can wait until the SDL3 window exists.
+
+Exit codes: `0` success, `1` input error, `2` usage error.

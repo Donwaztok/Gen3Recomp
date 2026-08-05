@@ -19,7 +19,7 @@ M01–M02 give a binary, logs, and tests. No catalog yet.
 ## Decisions
 
 - **Flag style:** GNU long options only (`--rom`, `--bios`, `--help`, `--version`). Short flags optional if they stay trivial.
-- **File dialog:** Allowed in M03 only as a thin SDL3 dialog. If adding SDL3 here complicates the milestone, require `--rom` and defer dialog to M05. Choose the smaller path at apply time; update this design if deferred.
+- **File dialog:** Deferred to M05. M03 requires `--rom` on the CLI so SDL3 is not pulled in early.
 - **Exit codes:** `0` ok, `2` usage, `1` input/runtime error is enough. Do not invent a large errno table.
 - **After successful path resolution in M03:** print the resolved ROM path (and BIOS if any) and exit 0. That keeps the milestone runnable without lying about booting a game. M04+ continue past this point.
 
@@ -34,4 +34,4 @@ Update README usage. Existing `--version` remains.
 
 ## Open Questions
 
-- Whether M03 or M05 owns the file dialog — resolve at apply by choosing the smaller dependency jump.
+- Resolved: M03 requires `--rom`; M05 may add a picker.
