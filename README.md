@@ -6,7 +6,7 @@ The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). Th
 
 ## Status
 
-Architecture phase. No runtime code yet.
+Milestone M01: the project builds a `gen3recomp` executable that reports its version.
 
 The source of truth for what we will build is OpenSpec:
 
@@ -40,4 +40,12 @@ gen3recomp
 
 **PolyForm Noncommercial License 1.0.0** — the same license as [gba-recomp](https://github.com/mstan/gbarecomp).
 
-The source is public. Commercial use is not allowed. The `LICENSE` file lands in milestone M01. See [openspec/product/decisions.md](openspec/product/decisions.md) (D11).
+The source is public. Commercial use is not allowed. See [LICENSE](LICENSE) and [openspec/product/decisions.md](openspec/product/decisions.md) (D11).
+
+## Build (Linux)
+
+```sh
+cmake -S . -B build
+cmake --build build
+./build/gen3recomp --version
+```

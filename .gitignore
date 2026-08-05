@@ -1,0 +1,28 @@
+# Build
+/build/
+/out/
+/cmake-build-*/
+compile_commands.json
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# User dumps and BIOS (never commit)
+*.gba
+*.GBA
+*bios*.bin
+gba_bios.bin
+gba_bios.bin.*
+
+# Generated / cached recomp output
+/generated/
+/recomp_cache/
+*.recomp_cache/
+
+# OS
+.DS_Store
+Thumbs.db
