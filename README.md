@@ -6,7 +6,7 @@ The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). Th
 
 ## Status
 
-Milestone M06: validated dumps open a host session with a null backend and a placeholder framebuffer.
+Milestone M07: validated dumps go through an isolated gba-recomp provider seam. Upstream sources are pinned but not yet driving native boot.
 
 The source of truth for what we will build is OpenSpec:
 

@@ -4,6 +4,7 @@
 #include "cli.hpp"
 #include "file_bytes.hpp"
 #include "logging.hpp"
+#include "gba_provider.hpp"
 #include "null_backend.hpp"
 #include "platform.hpp"
 #include "session.hpp"
@@ -11,7 +12,9 @@
 #include "video.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
+#include <memory>
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
@@ -102,9 +105,30 @@ int run_app(int argc, char** argv) {
         return static_cast<int>(gen3recomp::ExitCode::InputError);
     }
 
-    gen3recomp::NullBackend backend;
+    std::unique_ptr<gen3recomp::SessionBackend> owned_backend;
+    gen3recomp::SessionBackend* backend = nullptr;
+    gen3recomp::NullBackend null_backend;
+    if (const char* use_null = std::getenv("GEN3RECOMP_NULL_BACKEND");
+        use_null != nullptr && *use_null != '\0' && std::string{use_null} != "0") {
+        backend = &null_backend;
+        spdlog::info("using null session backend");
+    } else {
+        gen3recomp::GbaRecompProvider provider;
+        gen3recomp::PreparedSession prepared;
+        std::string prepare_error;
+        if (!provider.prepare(*parsed.request.rom_path, *bios_path, *game, prepared, prepare_error)) {
+            const std::string message = "error: recompiler provider failed: " + prepare_error + "\n";
+            std::fputs(message.c_str(), stderr);
+            spdlog::error("{}", prepare_error);
+            platform.shutdown();
+            return static_cast<int>(gen3recomp::ExitCode::InputError);
+        }
+        owned_backend = std::move(prepared.backend);
+        backend = owned_backend.get();
+    }
+
     gen3recomp::Session session;
-    const int session_rc = session.run(platform, backend);
+    const int session_rc = session.run(platform, *backend);
     platform.shutdown();
     if (session_rc != 0) {
         std::fputs("error: runtime session failed\n", stderr);

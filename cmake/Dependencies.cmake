@@ -27,3 +27,18 @@ FetchContent_MakeAvailable(fmt spdlog Catch2)
 list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 
 find_package(SDL3 REQUIRED CONFIG)
+
+option(GEN3RECOMP_FETCH_GBARECOMP "Clone the pinned gba-recomp sources into third_party/" OFF)
+if(GEN3RECOMP_FETCH_GBARECOMP)
+    FetchContent_Declare(
+        gbarecomp_src
+        GIT_REPOSITORY https://github.com/mstan/gbarecomp.git
+        GIT_TAG 2952aff2bb42f49de5903acf22af8fea3e2e3dee
+        SOURCE_DIR "${CMAKE_SOURCE_DIR}/third_party/gbarecomp"
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_GetProperties(gbarecomp_src)
+    if(NOT gbarecomp_src_POPULATED)
+        FetchContent_Populate(gbarecomp_src)
+    endif()
+endif()

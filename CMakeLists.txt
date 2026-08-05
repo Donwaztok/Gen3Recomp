@@ -13,6 +13,7 @@ add_subdirectory(src/game)
 add_subdirectory(src/platform)
 add_subdirectory(src/video)
 add_subdirectory(src/runtime)
+add_subdirectory(src/recomp)
 add_subdirectory(src/app)
 
 add_executable(gen3recomp src/main.cpp)

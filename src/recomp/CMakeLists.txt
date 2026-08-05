@@ -1,0 +1,3 @@
+add_library(gen3recomp_recomp STATIC gba/gba_provider.cpp gba/gba_backend.cpp)
+target_include_directories(gen3recomp_recomp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/gba")
+target_link_libraries(gen3recomp_recomp PUBLIC gen3recomp_core gen3recomp_game gen3recomp_runtime)

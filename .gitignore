@@ -22,6 +22,7 @@ gba_bios.bin.*
 /generated/
 /recomp_cache/
 *.recomp_cache/
+/third_party/gbarecomp/
 
 # OS
 .DS_Store

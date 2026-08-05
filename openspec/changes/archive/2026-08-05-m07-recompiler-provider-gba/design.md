@@ -37,4 +37,4 @@ Add `third_party/README.md` with pin hash and upgrade steps.
 
 ## Open Questions
 
-- Exact upstream CMake target names and whether a steppable runtime API exists in the chosen pin. Resolve during apply by reading upstream; do not guess in code.
+- Resolved for M07: upstream entry point is blocking `gbarecomp::run_game` with its own SDL2 host. M07 pins revision `2952aff` and lands the provider/session adapter without linking `gbarecomp_runtime`. M08 will wrap upstream execution or a steppable subset behind the same adapter.
