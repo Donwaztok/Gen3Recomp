@@ -77,8 +77,9 @@ Catalog Catalog::builtin() {
 }
 
 bool is_known_bios_sha1(std::string_view sha1) {
-    static constexpr std::array<std::string_view, 1> kKnown{
-        "fd2547724b505f487e6dcb29ec2ecff3af35a841",
+    static constexpr std::array<std::string_view, 2> kKnown{
+        "300c20df6731a33952ded8c436f7f186d25d3492",  // GBA / GBA SP / Micro / Game Boy Player
+        "c11531d5261006810cdc954bd4bec0afe3187b35",  // DS / DS Lite / 3DS dump
     };
     const auto needle = normalize_sha1(sha1);
     return std::any_of(kKnown.begin(), kKnown.end(), [&](std::string_view known) { return known == needle; });

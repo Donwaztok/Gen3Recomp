@@ -34,6 +34,8 @@ TEST_CASE("synthetic dump identity matches catalog entry") {
 }
 
 TEST_CASE("known bios hash is accepted") {
-    REQUIRE(gen3recomp::is_known_bios_sha1("fd2547724b505f487e6dcb29ec2ecff3af35a841"));
+    REQUIRE(gen3recomp::is_known_bios_sha1("300c20df6731a33952ded8c436f7f186d25d3492"));
+    REQUIRE(gen3recomp::is_known_bios_sha1("c11531d5261006810cdc954bd4bec0afe3187b35"));
+    REQUIRE_FALSE(gen3recomp::is_known_bios_sha1("fd2547724b505f487e6dcb29ec2ecff3af35a841"));
     REQUIRE_FALSE(gen3recomp::is_known_bios_sha1("0000000000000000000000000000000000000000"));
 }
