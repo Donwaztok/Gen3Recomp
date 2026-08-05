@@ -1,0 +1,7 @@
+file(GLOB_RECURSE runtime_sources "${SOURCE_DIR}/src/runtime/*")
+foreach(source IN LISTS runtime_sources)
+    file(READ "${source}" contents)
+    if(contents MATCHES "gbarecomp" OR contents MATCHES "gba-recomp")
+        message(FATAL_ERROR "${source} depends on gba-recomp")
+    endif()
+endforeach()

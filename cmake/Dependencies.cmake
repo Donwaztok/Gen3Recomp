@@ -25,3 +25,5 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(fmt spdlog Catch2)
 
 list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
+
+find_package(SDL3 REQUIRED CONFIG)

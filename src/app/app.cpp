@@ -4,7 +4,11 @@
 #include "cli.hpp"
 #include "file_bytes.hpp"
 #include "logging.hpp"
+#include "null_backend.hpp"
+#include "platform.hpp"
+#include "session.hpp"
 #include "version.hpp"
+#include "video.hpp"
 
 #include <cstdio>
 #include <filesystem>
@@ -85,5 +89,26 @@ int run_app(int argc, char** argv) {
     std::printf("ROM SHA-1: %s\n", rom_sha1.c_str());
     std::printf("BIOS SHA-1: %s\n", bios_sha1.c_str());
     spdlog::info("identified {} ({}) sha1={}", game->display_name, game->region, rom_sha1);
+
+    const std::string title = std::string{"gen3recomp — "} + game->display_name;
+    constexpr int kScale = 4;
+    gen3recomp::Platform platform;
+    if (!platform.init(
+            title.c_str(),
+            gen3recomp::window_size_for_scale(gen3recomp::kGbaWidth, kScale),
+            gen3recomp::window_size_for_scale(gen3recomp::kGbaHeight, kScale))) {
+        std::fputs("error: failed to open the host window\n", stderr);
+        spdlog::error("platform init failed");
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
+
+    gen3recomp::NullBackend backend;
+    gen3recomp::Session session;
+    const int session_rc = session.run(platform, backend);
+    platform.shutdown();
+    if (session_rc != 0) {
+        std::fputs("error: runtime session failed\n", stderr);
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
     return static_cast<int>(gen3recomp::ExitCode::Ok);
 }

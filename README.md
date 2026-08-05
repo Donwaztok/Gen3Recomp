@@ -6,7 +6,7 @@ The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). Th
 
 ## Status
 
-Milestone M04: the app identifies USA Ruby, Sapphire, and Emerald dumps by SHA-1 and requires a valid GBA BIOS.
+Milestone M06: validated dumps open a host session with a null backend and a placeholder framebuffer.
 
 The source of truth for what we will build is OpenSpec:
 
@@ -43,6 +43,9 @@ gen3recomp
 The source is public. Commercial use is not allowed. See [LICENSE](LICENSE) and [openspec/product/decisions.md](openspec/product/decisions.md) (D11).
 
 ## Build (Linux)
+
+```sh
+Install SDL3 first (Arch/CachyOS: `sudo pacman -S sdl3`).
 
 ```sh
 cmake -S . -B build
