@@ -1,0 +1,71 @@
+schema: spec-driven
+
+context: |
+  Project: gen3recomp
+  Kind: Native recompilation host for Pokémon Generation III (GBA)
+  Phase: Architecture-first. Product docs live in openspec/product/. Incremental work lives in openspec/changes/m01…m08.
+
+  Goal: one desktop executable named gen3recomp that lets a user supply their own legally obtained ROM (and BIOS), validates it, identifies Ruby / Sapphire / Emerald, and runs the game natively.
+
+  Tech stack: C++20, CMake, SDL3, fmt, spdlog, Catch2.
+  Product executable: gen3recomp
+  Test executable: gen3recomp_tests (Catch2 + CTest). This is not a second product.
+
+  Architecture docs to read first:
+    - openspec/product/vision.md
+    - openspec/product/architecture.md
+    - openspec/product/decisions.md
+    - openspec/product/roadmap.md
+
+  Hard rules:
+    - Do not distribute ROMs, GBA BIOS images, Nintendo assets, or ROM-derived generated sources.
+    - Project license is PolyForm Noncommercial 1.0.0 (same as gba-recomp). Not OSI open source. No commercial use.
+    - Keep It Simple. No overengineering. Few modules. High cohesion, low coupling.
+    - Clean Architecture + SOLID + composition over inheritance.
+    - Runtime must never contain Emerald-specific (or any title-specific) logic.
+    - Video/Audio/Input/Platform must never know Pokémon.
+    - gba-recomp integration is isolated behind a provider seam so it can be replaced later.
+    - gba-recomp already models GBA hardware. Do not reimplement the PPU/APU/bus.
+    - Host video/audio/input are adapters, not hardware emulators.
+    - MVP is USA revisions of Ruby, Sapphire, and Emerald only.
+    - Out of MVP: FireRed/LeafGreen, multiplayer, Vulkan, mods, save states, plugin ABI, editor, networking.
+    - All repository prose and code identifiers are English.
+    - Prefer the smallest design that can ship an executable after every milestone.
+
+  Module map (source dirs, linked as static libs into one exe):
+    core, app, game, recomp, runtime, platform, video, audio, input
+    There is no util module and no filesystem module.
+
+rules:
+  proposal:
+    - Keep proposals short. Lead with why and scope.
+    - Always include Non-goals when scope could sprawl.
+    - Reference the matching epic/milestone from openspec/product/.
+    - Do not introduce new modules without updating openspec/product/architecture.md and decisions.md.
+  specs:
+    - Use Given/When/Then via WHEN/THEN bullets. Add GIVEN when state matters.
+    - Requirements describe observable behavior, not C++ types.
+    - Every requirement MUST use SHALL or MUST and include at least one scenario.
+    - Do not mention Pokémon title logic outside game-identification / game catalog behavior.
+    - Platform, video, audio, and input specs MUST stay game-agnostic.
+  design:
+    - Prefer the simpler alternative and say what was rejected.
+    - Show dependency direction between modules.
+    - Isolate third_party/gbarecomp (or equivalent pin) behind src/recomp/gba/.
+    - Do not design plugin systems, Vulkan backends, or multi-backend platforms in MVP changes.
+    - Do not invent C++ headers in design unless a contract is otherwise ambiguous; describe contracts in prose.
+  tasks:
+    - Every milestone MUST leave a runnable, testable artifact.
+    - Tasks are implementation checkboxes, not design essays.
+    - Include verification tasks (build, test, or manual boot check) at the end.
+
+operations:
+  apply:
+    guidance:
+      - Implement only the current change. Do not pull later milestones forward.
+      - Stop and update design.md if gba-recomp APIs force a contract change.
+      - Never add ROM, BIOS, or generated ROM-derived files to git.
+  archive:
+    guidance:
+      - Confirm the milestone still matches openspec/product/milestones.md before merging deltas.
+      - Keep the archive summary to what behavior became true.
