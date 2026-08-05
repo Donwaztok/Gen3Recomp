@@ -1,5 +1,6 @@
 #include "app.hpp"
 
+#include "audio.hpp"
 #include "catalog.hpp"
 #include "cli.hpp"
 #include "file_bytes.hpp"
@@ -93,18 +94,6 @@ int run_app(int argc, char** argv) {
     std::printf("BIOS SHA-1: %s\n", bios_sha1.c_str());
     spdlog::info("identified {} ({}) sha1={}", game->display_name, game->region, rom_sha1);
 
-    const std::string title = std::string{"gen3recomp — "} + game->display_name;
-    constexpr int kScale = 4;
-    gen3recomp::Platform platform;
-    if (!platform.init(
-            title.c_str(),
-            gen3recomp::window_size_for_scale(gen3recomp::kGbaWidth, kScale),
-            gen3recomp::window_size_for_scale(gen3recomp::kGbaHeight, kScale))) {
-        std::fputs("error: failed to open the host window\n", stderr);
-        spdlog::error("platform init failed");
-        return static_cast<int>(gen3recomp::ExitCode::InputError);
-    }
-
     std::unique_ptr<gen3recomp::SessionBackend> owned_backend;
     gen3recomp::SessionBackend* backend = nullptr;
     gen3recomp::NullBackend null_backend;
@@ -120,7 +109,6 @@ int run_app(int argc, char** argv) {
             const std::string message = "error: recompiler provider failed: " + prepare_error + "\n";
             std::fputs(message.c_str(), stderr);
             spdlog::error("{}", prepare_error);
-            platform.shutdown();
             return static_cast<int>(gen3recomp::ExitCode::InputError);
         }
         owned_backend = std::move(prepared.backend);
@@ -128,7 +116,34 @@ int run_app(int argc, char** argv) {
     }
 
     gen3recomp::Session session;
-    const int session_rc = session.run(platform, *backend);
+    if (backend->owns_host_loop()) {
+        const int session_rc = session.run(*backend);
+        if (session_rc != 0) {
+            std::fputs("error: runtime session failed\n", stderr);
+            return static_cast<int>(gen3recomp::ExitCode::InputError);
+        }
+        return static_cast<int>(gen3recomp::ExitCode::Ok);
+    }
+
+    const std::string title = std::string{"gen3recomp — "} + game->display_name;
+    constexpr int kScale = 4;
+    gen3recomp::Platform platform;
+    if (!platform.init(
+            title.c_str(),
+            gen3recomp::window_size_for_scale(gen3recomp::kGbaWidth, kScale),
+            gen3recomp::window_size_for_scale(gen3recomp::kGbaHeight, kScale))) {
+        std::fputs("error: failed to open the host window\n", stderr);
+        spdlog::error("platform init failed");
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
+
+    gen3recomp::AudioDevice audio;
+    if (!audio.init()) {
+        spdlog::error("continuing without host audio");
+    }
+
+    const int session_rc = session.run(platform, *backend, &audio);
+    audio.shutdown();
     platform.shutdown();
     if (session_rc != 0) {
         std::fputs("error: runtime session failed\n", stderr);

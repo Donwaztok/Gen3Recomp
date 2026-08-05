@@ -1,25 +1,12 @@
 #include "gba_provider.hpp"
 
 #include "gba_backend.hpp"
+#include "user_data.hpp"
 
-#include <cstdlib>
 #include <filesystem>
 #include <system_error>
 
 namespace gen3recomp {
-namespace {
-
-std::filesystem::path default_user_data_dir() {
-    if (const char* xdg = std::getenv("XDG_DATA_HOME"); xdg != nullptr && *xdg != '\0') {
-        return std::filesystem::path{xdg} / "gen3recomp";
-    }
-    if (const char* home = std::getenv("HOME"); home != nullptr && *home != '\0') {
-        return std::filesystem::path{home} / ".local" / "share" / "gen3recomp";
-    }
-    return std::filesystem::temp_directory_path() / "gen3recomp";
-}
-
-}  // namespace
 
 bool GbaRecompProvider::prepare(
     const std::filesystem::path& rom_path,
@@ -41,15 +28,26 @@ bool GbaRecompProvider::prepare(
         return false;
     }
 
-    const auto cache_dir = default_user_data_dir() / "recomp_cache" / game.sha1;
+    const auto cache_dir = recomp_cache_dir(game.sha1);
+    const auto save_path = cartridge_save_path(game.sha1);
     std::error_code create_error;
     std::filesystem::create_directories(cache_dir, create_error);
     if (create_error) {
         error = "failed to create recomp cache directory: " + create_error.message();
         return false;
     }
+    std::filesystem::create_directories(save_path.parent_path(), create_error);
+    if (create_error) {
+        error = "failed to create save directory: " + create_error.message();
+        return false;
+    }
 
-    out.backend = std::make_unique<GbaSessionBackend>(rom_path, bios_path, cache_dir, game);
+    out.backend = std::make_unique<GbaSessionBackend>(
+        std::filesystem::weakly_canonical(rom_path),
+        std::filesystem::weakly_canonical(bios_path),
+        cache_dir,
+        save_path,
+        game);
     return true;
 }
 

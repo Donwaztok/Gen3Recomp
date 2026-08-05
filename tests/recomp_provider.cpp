@@ -1,3 +1,5 @@
+#include "catalog.hpp"
+#include "file_bytes.hpp"
 #include "gba_provider.hpp"
 #include "null_backend.hpp"
 
@@ -47,8 +49,7 @@ TEST_CASE("gba provider prepare succeeds for existing files") {
     std::string error;
     REQUIRE(provider.prepare(rom, bios, game, prepared, error));
     REQUIRE(prepared.backend != nullptr);
-    REQUIRE(prepared.backend->start());
-    prepared.backend->stop();
+    REQUIRE(prepared.backend->owns_host_loop());
     std::filesystem::remove(rom);
     std::filesystem::remove(bios);
 }
@@ -83,4 +84,8 @@ TEST_CASE("optional local dump prepare is env gated") {
     std::string error;
     REQUIRE(provider.prepare(rom, bios, game, prepared, error));
     REQUIRE(prepared.backend != nullptr);
+}
+
+TEST_CASE("optional local dump headless boot is env gated") {
+    SKIP("upstream headless --frames currently aborts; use the windowed boot path");
 }

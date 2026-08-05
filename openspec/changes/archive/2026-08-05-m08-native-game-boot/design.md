@@ -34,4 +34,4 @@ README becomes a real quick-start: dump requirements, BIOS, controls, save locat
 
 ## Open Questions
 
-None that should block boot. Upstream audio ownership is decided at apply by inspecting the pin.
+Resolved at apply: upstream pin `2952aff` still only exposes blocking `gbarecomp::run_game` with SDL2 `HostWindow` audio/input. Native boot wraps that call inside `src/recomp/gba/`. SDL3 `audio`/`input` serve the null backend and the future steppable unwrap. Follow-up: pull PCM + KEYINPUT out of upstream without dual windows.

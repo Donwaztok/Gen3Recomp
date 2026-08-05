@@ -6,7 +6,7 @@ Upstream license: PolyForm Noncommercial 1.0.0 (same family as this repository).
 
 ## Why it is pinned, not vendored blindly
 
-gba-recomp is a full GBA recompiler + hardware runtime with its own SDL2 host loop (`gbarecomp::run_game`). gen3recomp owns SDL3 and the session loop. Only `src/recomp/gba/` may include upstream headers or link upstream targets.
+gba-recomp is a full GBA recompiler + hardware runtime with its own SDL2 host loop (`gbarecomp::run_game`). gen3recomp owns SDL3 for the null/debug host path. Native boot wraps `run_game` inside `src/recomp/gba/` only: upstream presents video/audio/input until a steppable API exists. Do not include gba-recomp headers from other modules.
 
 ## Populate the pin
 

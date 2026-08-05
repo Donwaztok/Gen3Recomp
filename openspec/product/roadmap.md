@@ -9,13 +9,11 @@ M01 skeleton → M02 tests/logging → M03 launcher → M04 identify ROM
 
 This order **intentionally differs** from the first sketch (recompiler before window). See [decisions.md](decisions.md) D2.
 
-## Now — Architecture
+## Now — MVP boot
 
-- OpenSpec product docs and milestone changes
-- Agreed module map, dependency rules, and legal constraints
-- No implementation yet
+M01–M08 are implemented. Remaining product work is packaging, FRLG, and parked future features.
 
-## Next — MVP (native boot)
+## Next — post-MVP
 
 | Milestone | Outcome |
 |-----------|---------|

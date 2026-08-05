@@ -1,3 +1,3 @@
 add_library(gen3recomp_runtime STATIC session.cpp null_backend.cpp)
 target_include_directories(gen3recomp_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(gen3recomp_runtime PUBLIC gen3recomp_core gen3recomp_platform gen3recomp_video)
+target_link_libraries(gen3recomp_runtime PUBLIC gen3recomp_core gen3recomp_platform gen3recomp_video gen3recomp_input gen3recomp_audio)

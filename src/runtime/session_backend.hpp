@@ -1,6 +1,9 @@
 #pragma once
 
+#include "input.hpp"
+
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace gen3recomp {
@@ -17,6 +20,9 @@ public:
     virtual bool start() = 0;
     virtual Frame step() = 0;
     virtual void stop() = 0;
+    virtual bool owns_host_loop() const { return false; }
+    virtual void set_input(const GbaButtons&) {}
+    virtual void drain_audio(std::vector<std::int16_t>& out) { out.clear(); }
 };
 
 }
