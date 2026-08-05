@@ -1,11 +1,31 @@
 #include "app.hpp"
 
+#include "catalog.hpp"
 #include "cli.hpp"
+#include "file_bytes.hpp"
 #include "logging.hpp"
 #include "version.hpp"
 
 #include <cstdio>
+#include <filesystem>
+#include <optional>
 #include <spdlog/spdlog.h>
+#include <string>
+
+namespace {
+
+std::optional<std::filesystem::path> resolve_bios_path(const gen3recomp::LaunchRequest& request) {
+    if (request.bios_path.has_value()) {
+        return std::filesystem::path{*request.bios_path};
+    }
+    const std::filesystem::path local{"gba_bios.bin"};
+    if (std::filesystem::is_regular_file(local)) {
+        return local;
+    }
+    return std::nullopt;
+}
+
+}  // namespace
 
 int run_app(int argc, char** argv) {
     init_logging();
@@ -24,18 +44,46 @@ int run_app(int argc, char** argv) {
 
     if (parsed.code != gen3recomp::ExitCode::Ok) {
         std::fputs(parsed.message.c_str(), stderr);
-        if (parsed.code == gen3recomp::ExitCode::InputError) {
-            spdlog::error("{}", parsed.message);
-        }
         return static_cast<int>(parsed.code);
     }
 
-    spdlog::info("ROM: {}", *parsed.request.rom_path);
-    std::printf("ROM: %s\n", parsed.request.rom_path->c_str());
-    if (parsed.request.bios_path.has_value()) {
-        spdlog::info("BIOS: {}", *parsed.request.bios_path);
-        std::printf("BIOS: %s\n", parsed.request.bios_path->c_str());
+    const auto rom_sha1 = sha1_file(*parsed.request.rom_path);
+    const auto catalog = gen3recomp::Catalog::builtin();
+    const auto game = catalog.find_by_sha1(rom_sha1);
+    if (!game.has_value()) {
+        const std::string message =
+            "error: unsupported ROM dump\n"
+            "SHA-1: " +
+            rom_sha1 +
+            "\nMVP supports USA Ruby, Sapphire, and Emerald only.\n";
+        std::fputs(message.c_str(), stderr);
+        spdlog::error("unsupported ROM SHA-1 {}", rom_sha1);
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
     }
 
+    const auto bios_path = resolve_bios_path(parsed.request);
+    if (!bios_path.has_value()) {
+        const char* message =
+            "error: a GBA BIOS is required (--bios <path> or ./gba_bios.bin)\n";
+        std::fputs(message, stderr);
+        spdlog::error("missing GBA BIOS");
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
+
+    const auto bios_sha1 = sha1_file(*bios_path);
+    if (!gen3recomp::is_known_bios_sha1(bios_sha1)) {
+        const std::string message =
+            "error: unsupported GBA BIOS\n"
+            "SHA-1: " +
+            bios_sha1 + "\n";
+        std::fputs(message.c_str(), stderr);
+        spdlog::error("unsupported BIOS SHA-1 {}", bios_sha1);
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
+
+    std::printf("Identified: %s (%s)\n", game->display_name.c_str(), game->region.c_str());
+    std::printf("ROM SHA-1: %s\n", rom_sha1.c_str());
+    std::printf("BIOS SHA-1: %s\n", bios_sha1.c_str());
+    spdlog::info("identified {} ({}) sha1={}", game->display_name, game->region, rom_sha1);
     return static_cast<int>(gen3recomp::ExitCode::Ok);
 }

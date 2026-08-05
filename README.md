@@ -6,7 +6,7 @@ The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). Th
 
 ## Status
 
-Milestone M01: the project builds a `gen3recomp` executable that reports its version.
+Milestone M04: the app identifies USA Ruby, Sapphire, and Emerald dumps by SHA-1 and requires a valid GBA BIOS.
 
 The source of truth for what we will build is OpenSpec:
 
@@ -49,10 +49,12 @@ cmake -S . -B build
 cmake --build build
 ./build/gen3recomp --version
 ./build/gen3recomp --help
-./build/gen3recomp --rom /path/to/game.gba
+./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin
 ctest --test-dir build --output-on-failure
 ```
 
-`--rom` is required in this milestone. A file picker can wait until the SDL3 window exists.
+`--rom` is required. A GBA BIOS is required via `--bios` or `./gba_bios.bin`.
+
+Supported MVP dumps (exact SHA-1, USA): Ruby, Sapphire, and Emerald. Sources: [data/catalog_sources.md](data/catalog_sources.md). Unknown dumps are rejected with the computed SHA-1.
 
 Exit codes: `0` success, `1` input error, `2` usage error.

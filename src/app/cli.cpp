@@ -20,7 +20,7 @@ std::string usage_text() {
            "\n"
            "Options:\n"
            "  --rom <path>    Path to a legally obtained GBA ROM (required)\n"
-           "  --bios <path>   Path to a legally obtained GBA BIOS\n"
+           "  --bios <path>   Path to a legally obtained GBA BIOS (required to continue)\n"
            "  --help          Show this help text\n"
            "  --version       Print version identity\n"
            "\n"
