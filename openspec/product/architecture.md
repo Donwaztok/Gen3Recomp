@@ -63,7 +63,7 @@ src/
   audio/
   input/
 tests/                     Catch2
-third_party/gbarecomp/     pinned upstream, not wrapped casually elsewhere
+third_party/gbarecomp/     pinned upstream submodule, not wrapped casually elsewhere
 ```
 
 This layout is specified now and created in M01–M02. Do not invent extra directories during MVP.

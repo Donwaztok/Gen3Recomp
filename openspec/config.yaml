@@ -51,7 +51,7 @@ rules:
   design:
     - Prefer the simpler alternative and say what was rejected.
     - Show dependency direction between modules.
-    - Isolate third_party/gbarecomp (or equivalent pin) behind src/recomp/gba/.
+    - Isolate the third_party/gbarecomp submodule behind src/recomp/gba/.
     - Do not design plugin systems, Vulkan backends, or multi-backend platforms in MVP changes.
     - Do not invent C++ headers in design unless a contract is otherwise ambiguous; describe contracts in prose.
   tasks:

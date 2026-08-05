@@ -104,7 +104,7 @@ Architecture Decision Records for the MVP. Newest first inside each group only w
 
 ## D14 — Pin upstream; sync in one folder
 
-**Decision:** gba-recomp is a pinned third-party checkout. All upstream churn is absorbed in `third_party/gbarecomp` + `src/recomp/gba`.
+**Decision:** gba-recomp is a pinned git submodule at `third_party/gbarecomp`. All upstream churn is absorbed in that submodule + `src/recomp/gba`.
 
 **Why:** Easy contribution and easy sync require a single integration wound, not gba includes sprinkled through Runtime/Platform.
 

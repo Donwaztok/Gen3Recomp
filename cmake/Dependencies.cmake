@@ -28,30 +28,19 @@ list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 
 find_package(SDL3 REQUIRED CONFIG)
 
-option(GEN3RECOMP_FETCH_GBARECOMP "Clone the pinned gba-recomp sources into third_party/" OFF)
-if(GEN3RECOMP_FETCH_GBARECOMP)
-    FetchContent_Declare(
-        gbarecomp_src
-        GIT_REPOSITORY https://github.com/mstan/gbarecomp.git
-        GIT_TAG 2952aff2bb42f49de5903acf22af8fea3e2e3dee
-        SOURCE_DIR "${CMAKE_SOURCE_DIR}/third_party/gbarecomp"
-        GIT_SHALLOW TRUE
-    )
-    FetchContent_GetProperties(gbarecomp_src)
-    if(NOT gbarecomp_src_POPULATED)
-        FetchContent_Populate(gbarecomp_src)
-    endif()
+set(GBARECOMP_DIR "${CMAKE_SOURCE_DIR}/third_party/gbarecomp")
+if(NOT EXISTS "${GBARECOMP_DIR}/CMakeLists.txt")
+    message(FATAL_ERROR
+        "gba-recomp submodule is missing at third_party/gbarecomp.\n"
+        "Run: git submodule update --init --recursive")
 endif()
 
-set(GBARECOMP_DIR "${CMAKE_SOURCE_DIR}/third_party/gbarecomp")
-if(EXISTS "${GBARECOMP_DIR}/CMakeLists.txt")
-    set(GBARECOMP_ENABLE_MODS OFF CACHE BOOL "" FORCE)
-    set(GBARECOMP_BUILD_ORACLE OFF CACHE BOOL "" FORCE)
-    add_subdirectory("${GBARECOMP_DIR}" "${CMAKE_BINARY_DIR}/_gbarecomp" EXCLUDE_FROM_ALL)
-    get_directory_property(_gbarecomp_tests DIRECTORY "${GBARECOMP_DIR}" TESTS)
-    foreach(_gbarecomp_test IN LISTS _gbarecomp_tests)
-        if(TEST "${_gbarecomp_test}")
-            set_tests_properties("${_gbarecomp_test}" PROPERTIES DISABLED TRUE)
-        endif()
-    endforeach()
-endif()
+set(GBARECOMP_ENABLE_MODS OFF CACHE BOOL "" FORCE)
+set(GBARECOMP_BUILD_ORACLE OFF CACHE BOOL "" FORCE)
+add_subdirectory("${GBARECOMP_DIR}" "${CMAKE_BINARY_DIR}/_gbarecomp" EXCLUDE_FROM_ALL)
+get_directory_property(_gbarecomp_tests DIRECTORY "${GBARECOMP_DIR}" TESTS)
+foreach(_gbarecomp_test IN LISTS _gbarecomp_tests)
+    if(TEST "${_gbarecomp_test}")
+        set_tests_properties("${_gbarecomp_test}" PROPERTIES DISABLED TRUE)
+    endif()
+endforeach()

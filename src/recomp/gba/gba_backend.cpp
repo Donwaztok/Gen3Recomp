@@ -36,7 +36,7 @@ GbaSessionBackend::GbaSessionBackend(
 
 bool GbaSessionBackend::start() {
 #if !defined(GEN3RECOMP_HAS_GBARECOMP)
-    spdlog::error("gba-recomp runtime is not linked; checkout the pin in third_party/gbarecomp");
+    spdlog::error("gba-recomp runtime is not linked; init the third_party/gbarecomp submodule");
     return false;
 #else
     started_ = true;

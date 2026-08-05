@@ -28,11 +28,12 @@ Later: FireRed and LeafGreen.
 ## Quick start
 
 1. Install **SDL3** and **SDL2** (Arch/CachyOS: `sudo pacman -S sdl3 sdl2`).
-2. Check out the pinned gba-recomp sources (gitignored):
+2. Clone with submodules (gba-recomp lives in `third_party/gbarecomp`):
 
 ```sh
-git clone https://github.com/mstan/gbarecomp.git third_party/gbarecomp
-git -C third_party/gbarecomp checkout 2952aff2bb42f49de5903acf22af8fea3e2e3dee
+git clone --recurse-submodules <repo-url>
+# existing checkout:
+git submodule update --init --recursive
 ```
 
 3. Build and run with your dumps:

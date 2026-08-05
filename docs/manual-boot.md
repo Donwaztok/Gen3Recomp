@@ -6,7 +6,7 @@ MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald. Automat
 
 - A legally obtained USA dump of the title under test
 - A legally obtained GBA BIOS (`gba_bios.bin` or `--bios`)
-- Pinned gba-recomp checkout in `third_party/gbarecomp` (see `third_party/README.md`)
+- Initialized gba-recomp submodule in `third_party/gbarecomp` (`git submodule update --init --recursive`)
 - SDL2 (upstream host window/audio/input) and SDL3 (gen3recomp null-backend / host modules)
 
 ## Build

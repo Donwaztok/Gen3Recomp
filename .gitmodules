@@ -1,0 +1,3 @@
+[submodule "third_party/gbarecomp"]
+	path = third_party/gbarecomp
+	url = https://github.com/mstan/gbarecomp.git
