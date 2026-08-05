@@ -118,6 +118,20 @@ bool GbaSessionBackend::start() {
     } else {
         set_env("GBARECOMP_SELFHEAL_RECOMPILE", "1");
     }
+    // Gen3 copies hot code (IRQ / m4a / AgbMain) into IWRAM. Without RAM
+    // overlay heal those PCs are marked failed and stay on the interpreter,
+    // so boot never leaves forced-blank white after the BIOS logos.
+    if (std::getenv("GBARECOMP_RAM_OVERLAY_HEAL") == nullptr &&
+        std::getenv("GEN3RECOMP_DISABLE_RAM_HEAL") == nullptr) {
+        set_env("GBARECOMP_RAM_OVERLAY_HEAL", "1");
+    }
+    if (std::getenv("GBARECOMP_SYNC_OVERLAY_HEAL") == nullptr &&
+        std::getenv("GEN3RECOMP_DISABLE_SYNC_HEAL") == nullptr) {
+        set_env("GBARECOMP_SYNC_OVERLAY_HEAL", "1");
+    }
+    if (std::getenv("GBARECOMP_HANG_WATCHDOG") == nullptr) {
+        set_env("GBARECOMP_HANG_WATCHDOG", "0");
+    }
 
     std::vector<std::string> args{
         "gen3recomp",

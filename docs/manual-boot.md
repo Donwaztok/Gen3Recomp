@@ -96,7 +96,7 @@ gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
 Emerald USA
 - SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
 - BIOS intro / HLE note: local BIOS recomp + `--no-bios-hle` (LLE intro); Flash1M; SDL software renderer shows Nintendo / Game Boy logos
-- Title screen visible: cart still self-heals (empty static dispatch); intro may take a while after the BIOS logos
+- Title screen visible: after logos → copyright → white fade → Pokémon logo; first boot compiles IWRAM/ROM shards (can take a minute; do not Ctrl+C)
 - Audio heard: routed through upstream SDL2 host
 - Input reaches title menu: upstream keyboard map (X/Z/Enter/…)
 - In-game save + reload: save file keyed at ~/.local/share/gen3recomp/saves/<sha1>.sav; in-game round-trip is manual

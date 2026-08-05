@@ -57,7 +57,7 @@ Same layout as gba-recomp defaults: arrows = D-pad, **X** = A, **Z** = B, **Ente
 
 Cartridge saves live under `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`. Save states are not part of the MVP.
 
-A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`.
+A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`. After the Game Boy logos, the first boot compiles IWRAM/ROM shards on the fly (`GBARECOMP_RAM_OVERLAY_HEAL` + sync heal) and may hitch before the Game Freak / title screens.
 
 ```sh
 ./scripts/recompile_user_bios.sh ./gba_bios.bin
