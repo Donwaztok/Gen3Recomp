@@ -147,8 +147,12 @@ bool GbaSessionBackend::start() {
         "4",
         "--no-bios-hle",
     };
-    if (const char* frames = std::getenv("GEN3RECOMP_HEADLESS_FRAMES");
+    if (const char* frames = std::getenv("GEN3RECOMP_PREPARE_FRAMES");
         frames != nullptr && *frames != '\0' && std::string{frames} != "0") {
+        args.insert(args.end(), {"--frames", frames});
+        spdlog::info("prepare-cache running {} windowed guest frames", frames);
+    } else if (const char* frames = std::getenv("GEN3RECOMP_HEADLESS_FRAMES");
+               frames != nullptr && *frames != '\0' && std::string{frames} != "0") {
         args.insert(args.end(), {"--frames", frames, "--no-window"});
     }
 

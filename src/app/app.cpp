@@ -94,6 +94,22 @@ int run_app(int argc, char** argv) {
     std::printf("BIOS SHA-1: %s\n", bios_sha1.c_str());
     spdlog::info("identified {} ({}) sha1={}", game->display_name, game->region, rom_sha1);
 
+    if (parsed.request.prepare_cache) {
+        const std::string frames = std::to_string(parsed.request.prepare_frames);
+#if defined(_WIN32)
+        _putenv_s("GEN3RECOMP_PREPARE_FRAMES", frames.c_str());
+#else
+        setenv("GEN3RECOMP_PREPARE_FRAMES", frames.c_str(), 1);
+#endif
+        std::printf(
+            "Preparing native-code cache for %d guest frames, then exiting.\n"
+            "Cache: ~/.local/share/gen3recomp/recomp_cache/%s/\n"
+            "Launch again without --prepare to play at full speed.\n",
+            parsed.request.prepare_frames,
+            rom_sha1.c_str());
+        spdlog::info("prepare-cache frames={}", parsed.request.prepare_frames);
+    }
+
     std::unique_ptr<gen3recomp::SessionBackend> owned_backend;
     gen3recomp::SessionBackend* backend = nullptr;
     gen3recomp::NullBackend null_backend;

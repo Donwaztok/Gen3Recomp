@@ -57,7 +57,15 @@ Same layout as gba-recomp defaults: arrows = D-pad, **X** = A, **Z** = B, **Ente
 
 Cartridge saves live under `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`. Save states are not part of the MVP.
 
-A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`. After the Game Boy logos, the first boot compiles IWRAM/ROM shards on the fly (`GBARECOMP_RAM_OVERLAY_HEAL` + sync heal) and may hitch before the Game Freak / title screens.
+A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`. After the Game Boy logos, the first visit to each guest function compiles a native shard into `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`. That is why a cold boot can sit at a few FPS, then the same stretch runs at full speed after a restart. Warm the cache once, then play:
+
+```sh
+./build/gen3recomp --rom /path/to/game.gba --bios ./gba_bios.bin --prepare
+# or: ./scripts/prepare_cache.sh ./game.gba ./gba_bios.bin 7200
+./build/gen3recomp --rom /path/to/game.gba --bios ./gba_bios.bin
+```
+
+`--prepare` runs a fixed number of guest frames (default 3600, through the early title sequence) and exits. New areas still compile the first time you reach them.
 
 ```sh
 ./scripts/recompile_user_bios.sh ./gba_bios.bin

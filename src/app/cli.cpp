@@ -1,5 +1,6 @@
 #include "cli.hpp"
 
+#include <cstdlib>
 #include <filesystem>
 #include <string_view>
 
@@ -14,15 +15,17 @@ bool file_exists(const std::string& path) {
 }  // namespace
 
 std::string usage_text() {
-    return "Usage: gen3recomp --rom <path> [--bios <path>]\n"
+    return "Usage: gen3recomp --rom <path> [--bios <path>] [--prepare [frames]]\n"
            "       gen3recomp --help\n"
            "       gen3recomp --version\n"
            "\n"
            "Options:\n"
-           "  --rom <path>    Path to a legally obtained GBA ROM (required)\n"
-           "  --bios <path>   Path to a legally obtained GBA BIOS (required to continue)\n"
-           "  --help          Show this help text\n"
-           "  --version       Print version identity\n"
+           "  --rom <path>         Path to a legally obtained GBA ROM (required)\n"
+           "  --bios <path>        Path to a legally obtained GBA BIOS (required to continue)\n"
+           "  --prepare [frames]   Warm the local native-code cache, then exit\n"
+           "                       (default 3600 guest frames ≈ title sequence)\n"
+           "  --help               Show this help text\n"
+           "  --version            Print version identity\n"
            "\n"
            "Controls:\n"
            "  Arrows  D-pad     X  A     Z  B\n"
@@ -69,6 +72,23 @@ ParseResult parse_args(int argc, char** argv) {
                 return result;
             }
             result.request.bios_path = argv[++i];
+            continue;
+        }
+
+        if (arg == "--prepare") {
+            result.request.prepare_cache = true;
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                char* end = nullptr;
+                const long parsed = std::strtol(argv[i + 1], &end, 10);
+                if (end == argv[i + 1] || *end != '\0' || parsed < 1 || parsed > 1000000) {
+                    result.code = ExitCode::UsageError;
+                    result.message = "error: --prepare requires a frame count between 1 and 1000000\n\n" +
+                                     usage_text();
+                    return result;
+                }
+                result.request.prepare_frames = static_cast<int>(parsed);
+                ++i;
+            }
             continue;
         }
 

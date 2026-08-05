@@ -20,8 +20,11 @@ ctest --test-dir build --output-on-failure
 ## Launch
 
 ```sh
+./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin --prepare
 ./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin
 ```
+
+`--prepare` warms the per-ROM self-heal cache (windowed, then exits). Skip it only if you already played far enough once; that session wrote the same cache.
 
 Cartridge saves: `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`  
 Self-heal cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`

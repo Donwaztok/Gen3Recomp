@@ -42,6 +42,7 @@ TEST_CASE("help prints usage and succeeds") {
     REQUIRE(result.message.find("--rom") != std::string::npos);
     REQUIRE(result.message.find("--bios") != std::string::npos);
     REQUIRE(result.message.find("--version") != std::string::npos);
+    REQUIRE(result.message.find("--prepare") != std::string::npos);
     REQUIRE(result.message.find("Exit codes") != std::string::npos);
 }
 
@@ -79,6 +80,34 @@ TEST_CASE("existing rom path is accepted") {
     const auto result = gen3recomp::parse_args(args.argc(), args.argv());
     REQUIRE(result.code == gen3recomp::ExitCode::Ok);
     REQUIRE(result.request.rom_path == rom.string());
+    std::filesystem::remove(rom);
+}
+
+TEST_CASE("prepare defaults to 3600 frames") {
+    const auto rom = make_temp_file("gen3recomp-launcher-prepare.gba");
+    Argv args{{"gen3recomp", "--rom", rom.string(), "--prepare"}};
+    const auto result = gen3recomp::parse_args(args.argc(), args.argv());
+    REQUIRE(result.code == gen3recomp::ExitCode::Ok);
+    REQUIRE(result.request.prepare_cache);
+    REQUIRE(result.request.prepare_frames == 3600);
+    std::filesystem::remove(rom);
+}
+
+TEST_CASE("prepare accepts an explicit frame count") {
+    const auto rom = make_temp_file("gen3recomp-launcher-prepare-n.gba");
+    Argv args{{"gen3recomp", "--rom", rom.string(), "--prepare", "1200"}};
+    const auto result = gen3recomp::parse_args(args.argc(), args.argv());
+    REQUIRE(result.code == gen3recomp::ExitCode::Ok);
+    REQUIRE(result.request.prepare_cache);
+    REQUIRE(result.request.prepare_frames == 1200);
+    std::filesystem::remove(rom);
+}
+
+TEST_CASE("prepare rejects a non-positive frame count") {
+    const auto rom = make_temp_file("gen3recomp-launcher-prepare-bad.gba");
+    Argv args{{"gen3recomp", "--rom", rom.string(), "--prepare", "0"}};
+    const auto result = gen3recomp::parse_args(args.argc(), args.argv());
+    REQUIRE(result.code == gen3recomp::ExitCode::UsageError);
     std::filesystem::remove(rom);
 }
 
