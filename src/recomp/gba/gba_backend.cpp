@@ -4,6 +4,7 @@
 #include "runtime.h"
 #endif
 
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <spdlog/spdlog.h>
@@ -100,8 +101,13 @@ bool GbaSessionBackend::start() {
     const auto user_root = cache_dir_.parent_path().parent_path();
     std::filesystem::current_path(user_root, cwd_error);
 
+    setvbuf(stdout, nullptr, _IONBF, 0);
     set_env("GBARECOMP_NO_LAUNCHER", "1");
-    set_env("GBARECOMP_PRESENT_IN_PLACE", "0");
+    // SDL2 OpenGL + RGB24 streaming textures present as a blank white frame on
+    // some NVIDIA/Wayland hosts. Software is correct; users can override.
+    if (std::getenv("SDL_RENDER_DRIVER") == nullptr) {
+        set_env("SDL_RENDER_DRIVER", "software");
+    }
     if (!game_.save_family.empty()) {
         set_env("GBARECOMP_SAVE_TYPE", game_.save_family.c_str());
     }

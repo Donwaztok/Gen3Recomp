@@ -74,7 +74,7 @@ Sapphire USA
 
 Upstream `run_game` owns the playable window (SDL2), audio device, and keyboard mapping during native boot. gen3recomp SDL3 audio/input modules stay available for the null backend and for a later steppable unwrap.
 
-Without a locally generated BIOS recompilation linked into gba-recomp, upstream forces BIOS HLE and skips the Nintendo logo intro. Emerald often stays on a white screen in that mode. Generate BIOS sources locally, rebuild, then relaunch:
+Without a locally generated BIOS recompilation linked into gba-recomp, upstream forces BIOS HLE and skips the Nintendo logo intro. Emerald often stays on a white screen in that mode. Leave upstream present-in-place enabled (do not set `GBARECOMP_PRESENT_IN_PLACE=0`) so VBlank presents resume in-place instead of redispatching mid-function PCs. On NVIDIA/Wayland, SDL2 OpenGL may also present a solid white window even while the PPU is drawing the BIOS intro; gen3recomp defaults to the SDL software renderer (`SDL_RENDER_DRIVER=software`). Generate BIOS sources locally, rebuild, then relaunch:
 
 ```sh
 ./scripts/recompile_user_bios.sh ./gba_bios.bin
@@ -95,8 +95,8 @@ gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
 
 Emerald USA
 - SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
-- BIOS intro / HLE note: HLE (no linked BIOS recomp); Nintendo logo skipped
-- Title screen visible: windowed upstream host starts and executes cart code; full title-screen wait is manual
+- BIOS intro / HLE note: local BIOS recomp + `--no-bios-hle` (LLE intro); Flash1M; SDL software renderer shows Nintendo / Game Boy logos
+- Title screen visible: cart still self-heals (empty static dispatch); intro may take a while after the BIOS logos
 - Audio heard: routed through upstream SDL2 host
 - Input reaches title menu: upstream keyboard map (X/Z/Enter/…)
 - In-game save + reload: save file keyed at ~/.local/share/gen3recomp/saves/<sha1>.sav; in-game round-trip is manual
