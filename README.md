@@ -36,18 +36,21 @@ git clone --recurse-submodules <repo-url>
 git submodule update --init --recursive
 ```
 
-3. Build and run with your dumps:
+3. Build the host, then locally recompile **your** BIOS and ROM into native C++ (never committed), rebuild, and play:
 
 ```sh
 cmake -S . -B build
-cmake --build build
-./build/gen3recomp --version
-./build/gen3recomp --help
-./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin
+cmake --build build --target gba_recompile gen3recomp
+./scripts/recompile_user_bios.sh ./gba_bios.bin
+./scripts/recompile_user_rom.sh "./Pokemon - Emerald Version (USA, Europe).gba"
+cmake -S . -B build && cmake --build build -j"$(nproc)"
+./build/gen3recomp --rom "./Pokemon - Emerald Version (USA, Europe).gba" --bios ./gba_bios.bin
 ctest --test-dir build --output-on-failure
 ```
 
 `--rom` is required. A GBA BIOS is required via `--bios` or `./gba_bios.bin`.
+
+Without the local cart corpus under `generated/rom/`, the binary falls back to runtime self-heal (cold areas compile on first visit and feel like a few FPS). Static AOT covers the whole dump so gameplay after the name screen is already native.
 
 Supported MVP dumps (exact SHA-1, USA): Ruby, Sapphire, and Emerald. Sources: [data/catalog_sources.md](data/catalog_sources.md). Unknown dumps are rejected with the computed SHA-1.
 
@@ -57,22 +60,11 @@ Same layout as gba-recomp defaults: arrows = D-pad, **X** = A, **Z** = B, **Ente
 
 Cartridge saves live under `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`. Save states are not part of the MVP.
 
-A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`. After the Game Boy logos, the first visit to each guest function compiles a native shard into `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`. That is why a cold boot can sit at a few FPS, then the same stretch runs at full speed after a restart. Warm the cache once, then play:
+A blank/white window usually means upstream is running without a locally recompiled BIOS (HLE boot skip), or SDL2's OpenGL backend is uploading RGB24 frames incorrectly (common on NVIDIA + Wayland). Generate BIOS sources from your dump, rebuild, and keep present-in-place enabled. The host defaults to `SDL_RENDER_DRIVER=software`; set that variable yourself to try `opengl` / `opengles2`.
 
-```sh
-./build/gen3recomp --rom /path/to/game.gba --bios ./gba_bios.bin --prepare
-# or: ./scripts/prepare_cache.sh ./game.gba ./gba_bios.bin 7200
-./build/gen3recomp --rom /path/to/game.gba --bios ./gba_bios.bin
-```
+IWRAM overlays (IRQ / m4a / AgbMain copies) still compile once into `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`. `--prepare` only walks a fixed frame count and is not a substitute for static cart AOT.
 
-`--prepare` runs a fixed number of guest frames (default 3600, through the early title sequence) and exits. New areas still compile the first time you reach them.
-
-```sh
-./scripts/recompile_user_bios.sh ./gba_bios.bin
-cmake -S . -B build && cmake --build build
-```
-
-Do not commit the generated BIOS sources.
+Do not commit generated BIOS or ROM sources (`third_party/gbarecomp/src/runtime/generated_bios/`, `generated/rom/`).
 
 ## Intended user flow
 

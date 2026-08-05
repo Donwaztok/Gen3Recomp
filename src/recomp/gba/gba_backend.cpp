@@ -81,13 +81,19 @@ bool GbaSessionBackend::start() {
     return false;
 #else
     started_ = true;
+#if defined(GEN3RECOMP_HAS_STATIC_CART)
+    constexpr bool kStaticCart = true;
+#else
+    constexpr bool kStaticCart = false;
+#endif
     spdlog::info(
-        "gba-recomp adapter launching id={} cache={} save={} rom={} bios={}",
+        "gba-recomp adapter launching id={} cache={} save={} rom={} bios={} static_cart={}",
         game_.id,
         cache_dir_.string(),
         save_path_.string(),
         rom_path_.string(),
-        bios_path_.string());
+        bios_path_.string(),
+        kStaticCart);
 
     const auto config_path = cache_dir_ / "game.toml";
     if (!write_game_config(config_path, rom_path_, bios_path_, save_path_, game_)) {

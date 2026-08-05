@@ -13,21 +13,23 @@ MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald. Automat
 
 ```sh
 cmake -S . -B build
-cmake --build build
+cmake --build build --target gba_recompile gen3recomp
+./scripts/recompile_user_bios.sh /path/to/gba_bios.bin
+./scripts/recompile_user_rom.sh /path/to/game.gba
+cmake -S . -B build && cmake --build build -j"$(nproc)"
 ctest --test-dir build --output-on-failure
 ```
+
+Cart AOT writes `generated/rom/` (gitignored). Reconfigure after the first generation so CMake links the shards. Expect a multi-minute host compile.
 
 ## Launch
 
 ```sh
-./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin --prepare
 ./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin
 ```
 
-`--prepare` warms the per-ROM self-heal cache (windowed, then exits). Skip it only if you already played far enough once; that session wrote the same cache.
-
 Cartridge saves: `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`  
-Self-heal cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`
+Self-heal / IWRAM overlay cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`
 
 ## Controls
 
@@ -81,7 +83,8 @@ Without a locally generated BIOS recompilation linked into gba-recomp, upstream 
 
 ```sh
 ./scripts/recompile_user_bios.sh ./gba_bios.bin
-cmake -S . -B build && cmake --build build
+./scripts/recompile_user_rom.sh /path/to/game.gba
+cmake -S . -B build && cmake --build build -j"$(nproc)"
 ```
 
 Do not commit those generated files. If a previous self-heal cache looks stuck, delete `~/.local/share/gen3recomp/recomp_cache/<sha1>/` and try again.
@@ -99,7 +102,7 @@ gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
 Emerald USA
 - SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
 - BIOS intro / HLE note: local BIOS recomp + `--no-bios-hle` (LLE intro); Flash1M; SDL software renderer shows Nintendo / Game Boy logos
-- Title screen visible: after logos → copyright → white fade → Pokémon logo; first boot compiles IWRAM/ROM shards (can take a minute; do not Ctrl+C)
+- Title screen visible: after logos → copyright → white fade → Pokémon logo; static cart AOT + IWRAM overlay heal
 - Audio heard: routed through upstream SDL2 host
 - Input reaches title menu: upstream keyboard map (X/Z/Enter/…)
 - In-game save + reload: save file keyed at ~/.local/share/gen3recomp/saves/<sha1>.sav; in-game round-trip is manual

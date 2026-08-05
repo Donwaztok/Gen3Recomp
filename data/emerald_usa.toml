@@ -1,0 +1,16 @@
+[program]
+name = "Pokémon Emerald (USA)"
+id = "emerald-usa"
+load_address = 0x08000000
+size = 0x01000000
+entry_pc = 0x080000C0
+speculative_literal_harvest = true
+aot_scan_start = 0x080000C0
+aot_scan_end = 0x08B00000
+# IRQ mid-function resume uses runtime self-heal. Full static_resume_all
+# inflates the dispatch table past a practical host compile (~1.1M aliases).
+static_resume_all = false
+codegen_shards = 64
+
+[identity]
+sha1 = "f3ae088181bf583e55daf962a92bb46f4f1d07b7"
