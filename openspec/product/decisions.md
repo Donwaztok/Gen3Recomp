@@ -20,11 +20,11 @@ Architecture Decision Records for the MVP. Newest first inside each group only w
 
 ## D3 — Player launcher UI; CLI remains supported
 
-**Decision:** The default player path (no `--rom`) opens a small launcher UI to select catalogued dumps, run the cart AOT gate, manage mods, and Play. Power users and automation keep `gen3recomp --rom <path> [--bios <path>]`.
+**Decision:** The default player path is the separate **Tauri + React** app `gen3recomp-launcher` (cover grid, Build/Play/Mods). Power users and automation keep `gen3recomp --rom <path> [--bios <path>]`. Bare `gen3recomp` without `--rom` tries to exec the launcher beside the host / on PATH; otherwise prints a short hint (it no longer opens the SDL textured grid as the primary player UI).
 
-**Why:** End users will not run CMake. Local cart AOT (D7) still happens on their machine; the UI only orchestrates it.
+**Why:** End users will not run CMake. Local cart AOT (D7) still happens on their machine; the polished UI only orchestrates it. A component-library shell is far easier to make product-grade than custom SDL chrome.
 
-**Rejected:** CLI-only forever; silent autoplay of the first `.gba` in a folder; shipping prebuilt cart objects in Releases.
+**Rejected:** CLI-only forever; silent autoplay of the first `.gba` in a folder; shipping prebuilt cart objects in Releases; keeping the SDL grid as the default player surface.
 
 ## D4 — Do not reimplement the GBA PPU/APU
 
@@ -74,13 +74,13 @@ Architecture Decision Records for the MVP. Newest first inside each group only w
 
 **Rejected:** Silent BIOS HLE to make first boot “easier”.
 
-## D10 — One product exe; tests are a second target
+## D10 — Player surface is launcher + host; tests are a second target
 
-**Decision:** Ship `gen3recomp`. Develop `gen3recomp_tests` via Catch2/CTest.
+**Decision:** Ship the **player pair** `gen3recomp-launcher` (Tauri) + `gen3recomp` (C++ host). CLI and automation still use the host alone. Develop `gen3recomp_tests` via Catch2/CTest — that is not a second product.
 
-**Why:** “Only one executable” means one product, not “ban the test runner”.
+**Why:** “One product” means one player experience, not a ban on a thin shell process. Separating the UI keeps the gameplay host simple and unlocks a real component library.
 
-**Rejected:** Multiple game binaries (`EmeraldRecomp`, `RubyRecomp`, …). Rejected: stuffing tests into the product binary.
+**Rejected:** Multiple game binaries (`EmeraldRecomp`, `RubyRecomp`, …). Rejected: stuffing tests into the product binary. Rejected: requiring Electron for the shell.
 
 ## D11 — Same license as gba-recomp: PolyForm Noncommercial 1.0.0
 

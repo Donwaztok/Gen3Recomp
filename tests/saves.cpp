@@ -10,7 +10,7 @@
 
 TEST_CASE("cart artifact path is keyed by dump identity and abi tag") {
     const auto path = gen3recomp::cart_artifact_path("dddddddddddddddddddddddddddddddddddddddd");
-    REQUIRE(path.filename() == "libcart.so");
+    REQUIRE(path.filename() == gen3recomp::cart_artifact_library_name());
     REQUIRE(path.parent_path().filename() == gen3recomp::cart_artifact_abi_tag());
     REQUIRE(path.parent_path().parent_path().filename() == "dddddddddddddddddddddddddddddddddddddddd");
     REQUIRE(path.parent_path().parent_path().parent_path().filename() == "cart_aot");

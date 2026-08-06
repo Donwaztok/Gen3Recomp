@@ -2,11 +2,11 @@
 
 Native recompilation host for **Pokémon Generation III**.
 
-The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). This project does **not** distribute Nintendo ROMs, BIOS images, or game assets.
+The user supplies their own legally obtained Game Boy Advance ROM (and BIOS). This project does **not** distribute Nintendo ROMs, BIOS images, box art, or game assets.
 
 ## Status
 
-Milestone M08 plus local full-cart AOT and a player launcher UI: catalogued USA dumps run through the gba-recomp adapter. Emerald is validated with static cart coverage; Ruby and Sapphire use the same host and scripts.
+Player UI is a separate **Tauri + React** launcher (`gen3recomp-launcher`) with cover grid and HeroUI. The C++ host runs the game session after Build/Play.
 
 OpenSpec: [openspec/README.md](openspec/README.md) · [docs/manual-boot.md](docs/manual-boot.md)
 
@@ -16,61 +16,82 @@ OpenSpec: [openspec/README.md](openspec/README.md) · [docs/manual-boot.md](docs
 - Pokémon Sapphire (USA)
 - Pokémon Emerald (USA)
 
-Later: FireRed and LeafGreen.
+## Build host (Linux / Windows / macOS)
 
-## Player flow (recommended)
-
-1. Install **SDL3** and **SDL2** (Arch/CachyOS: `sudo pacman -S sdl3 sdl2`) plus a C++ toolchain (`c++` on PATH) for the one-time cart Build.
-2. Clone with submodules: `git submodule update --init --recursive`
-3. Build the host + recompiler tool, then BIOS AOT:
+Dependencies: **C++20**, **CMake ≥ 3.20**, **SDL3**, **SDL2** (for gba-recomp).
 
 ```sh
+git submodule update --init --recursive
 cmake -S . -B build
 cmake --build build --target gba_recompile gen3recomp
-./scripts/recompile_user_bios.sh ./gba_bios.bin
 ```
 
-4. Put catalogued dumps in `roms/` and `gba_bios.bin` in the working directory (all gitignored).
-5. Run the launcher (no `--rom`):
+## Build launcher (Tauri)
+
+Dependencies: **Node 20+**, **Rust** (rustup), platform WebView (Linux: `webkit2gtk`).
 
 ```sh
-./build/gen3recomp
+cd launcher
+npm install
+npm run tauri:dev     # development (starts Vite on :1420)
+npm run tauri:build   # production — embeds UI (required for Releases / ./scripts/run_launcher.sh)
 ```
 
-In the launcher: select a title → **B** Build (once, may take minutes) → **Enter** Play. The stock binary **dlopens** `~/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so` — no CMake relink for players.
+**Do not** run bare `cargo build` inside `launcher/src-tauri` for a player binary: that often leaves the WebView pointed at `http://localhost:1420` and shows **Connection refused**. Use `npm run tauri:build` or `npm run tauri:dev`.
 
-**Mods:** place packages under `mods/<id>/mod.toml` (or `~/.local/share/gen3recomp/mods/`). Press **M** in the launcher to enable/disable. Packages must not embed `.gba` / BIOS payloads. In-game mod toggles are not available yet (launcher-only).
+Player Release zip (host + launcher, D7-safe):
 
-## CLI (automation)
+```sh
+./scripts/package_release.sh
+# → dist/release/gen3recomp-<ver>-linux-x64.zip
+```
+
+| OS | Notes |
+|----|--------|
+| **Linux** | Reference path; cart AOT `abi3-linux-x64` / `libcart.so` |
+| **Windows** | WebView2; host under `%APPDATA%/gen3recomp`; cart `abi3-windows-x64` / `cart.dll` |
+| **macOS** | Host data under Application Support; ABI `abi3-macos-arm64` or `abi3-macos-x64` |
+
+Cart **Build** shells to `scripts/build_cart_artifact.sh` (bash). On Windows use WSL/Git Bash for that script until a native script lands.
+
+## Player flow
+
+1. Place USA dumps in `roms/` and `gba_bios.bin` in the working directory.
+2. Optional cover overrides: `roms/covers/<game-id>.png` (gitignored). Otherwise covers fetch into user-data cache — never shipped in Releases.
+3. Run the launcher (preferred):
+
+```sh
+cd launcher && npm run tauri:dev
+# or after build (Hyprland/NVIDIA: prefer the wrapper — forces X11 for GTK/WebKit):
+./scripts/run_launcher.sh
+# or: GDK_BACKEND=x11 ./launcher/src-tauri/target/release/gen3recomp-launcher
+```
+
+On Wayland + NVIDIA, bare launch often fails with `Gdk-Message: Error 71` — use `GDK_BACKEND=x11` (the wrapper sets this).
+
+Bare `./build/gen3recomp` **execs** `gen3recomp-launcher` if found beside the host / under `launcher/src-tauri/target/{debug,release}/`, else prints how to build it. Override with `GEN3RECOMP_LAUNCHER`. Legacy SDL UI: `GEN3RECOMP_SDL_LAUNCHER=1`.
+
+Click a cover → **Build** (once) → **Play**.
+
+## CLI
 
 ```sh
 ./build/gen3recomp --rom "./roms/Pokemon - Emerald Version (USA, Europe).gba" --bios ./gba_bios.bin
 ```
 
-`--rom` selects the CLI path (skips the launcher). BIOS via `--bios` or `./gba_bios.bin`.
+## Paths
 
-**Dev shortcut:** `./scripts/recompile_user_rom.sh <rom>` writes `generated/rom/` and CMake can compile those shards into the exe (slow every clean build). Prefer the cart artifact + runtime load for day-to-day host rebuilds. Optional `-DGEN3RECOMP_CART_ARTIFACT=…` still links the `.so` at build time for contributors.
+| Kind | Location |
+|------|----------|
+| Saves | `<user-data>/saves/<sha1>.sav` |
+| Cart AOT | `<user-data>/cart_aot/<sha1>/<abi>/<lib>` |
+| Covers | `<user-data>/covers/` or `roms/covers/` |
+| Heal cache | `<user-data>/recomp_cache/<sha1>/` |
 
-Without cart AOT, the binary uses empty cart dispatch + self-heal (cold ROM PCs feel like a few FPS). `--prepare` only warms heal cache for a frame window — optional diagnostic, not the product path.
+Linux user-data default: `~/.local/share/gen3recomp`.
 
-**Release zip (D7):** host + tools/scripts — never ROM/BIOS or prebuilt cart objects. Users supply dumps and run Build locally.
-
-Supported MVP dumps (exact SHA-1): [data/catalog_sources.md](data/catalog_sources.md).
-
-## Controls
-
-**Launcher:** Up/Down select, **A** Add ROM…, **B** Build, **Enter/X** Play, **M** Mods, **R** Refresh, Esc/Q quit.
-
-**In-game:** Arrows = D-pad, **X** = A, **Z** = B, **Enter** = Start, **Right Shift** = Select, **C** = L, **V** = R. Esc or Q quits.
-
-Saves: `~/.local/share/gen3recomp/saves/<rom-sha1>.sav`  
-Cart artifact: `~/.local/share/gen3recomp/cart_aot/<rom-sha1>/abi3-linux-x64/libcart.so`  
-IWRAM heal cache: `~/.local/share/gen3recomp/recomp_cache/<rom-sha1>/`
-
-Blank/white window: usually missing BIOS recomp or OpenGL RGB24 on NVIDIA/Wayland — keep `SDL_RENDER_DRIVER=software` (host default) and local BIOS AOT.
+**Release zip (D7):** host + launcher + scripts via `./scripts/package_release.sh` — no ROM/BIOS/covers/cart objects. Player entrypoint in the zip: `./gen3recomp-player`.
 
 ## License
 
-**PolyForm Noncommercial License 1.0.0** — same as [gba-recomp](https://github.com/mstan/gbarecomp). See [LICENSE](LICENSE).
-
-Exit codes: `0` success, `1` input error, `2` usage error.
+**PolyForm Noncommercial License 1.0.0** — see [LICENSE](LICENSE).

@@ -24,6 +24,18 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(fmt spdlog Catch2)
 
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG master
+    GIT_SHALLOW TRUE
+)
+FetchContent_GetProperties(stb)
+if(NOT stb_POPULATED)
+    FetchContent_Populate(stb)
+endif()
+set(GEN3RECOMP_STB_INCLUDE_DIR "${stb_SOURCE_DIR}" CACHE INTERNAL "")
+
 list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 
 find_package(SDL3 REQUIRED CONFIG)

@@ -18,10 +18,20 @@ compile_commands.json
 gba_bios.bin
 gba_bios.bin.*
 
+# Local cover overrides (fetched covers live in user-data, not the repo)
+/roms/covers/
+
 # Generated / cached recomp output
 /generated/
 /recomp_cache/
 *.recomp_cache/
+
+# Tauri / Node launcher
+/launcher/node_modules/
+/launcher/dist/
+/launcher/src-tauri/target/
+/launcher/src-tauri/gen/
+/dist/
 
 # OS
 .DS_Store

@@ -1,4 +1,5 @@
 #include "cart_artifact.hpp"
+#include "cover_art.hpp"
 #include "mods.hpp"
 #include "roms_scan.hpp"
 #include "user_data.hpp"
@@ -23,6 +24,43 @@ std::filesystem::path unique_temp_dir(const std::string& name) {
 
 TEST_CASE("cart_artifact_ready is false for missing dump") {
     REQUIRE_FALSE(gen3recomp::cart_artifact_ready("ffffffffffffffffffffffffffffffffffffffff"));
+}
+
+TEST_CASE("cover urls are curated for MVP titles") {
+    const auto emerald = gen3recomp::cover_urls_for("emerald-usa");
+    REQUIRE_FALSE(emerald.primary.empty());
+    REQUIRE(emerald.primary.find("http") == 0);
+    REQUIRE(gen3recomp::cover_urls_for("not-a-game").primary.empty());
+}
+
+TEST_CASE("missing cover yields no cache path") {
+    const auto temp = unique_temp_dir("gen3recomp-cover-miss");
+#if defined(_WIN32)
+    _putenv_s("XDG_DATA_HOME", temp.string().c_str());
+#else
+    setenv("XDG_DATA_HOME", temp.string().c_str(), 1);
+#endif
+    REQUIRE_FALSE(gen3recomp::find_cached_cover("emerald-usa").has_value());
+    std::filesystem::remove_all(temp);
+}
+
+TEST_CASE("cover cache hit prefers existing file without network") {
+    const auto temp = unique_temp_dir("gen3recomp-cover-hit");
+#if defined(_WIN32)
+    _putenv_s("XDG_DATA_HOME", temp.string().c_str());
+#else
+    setenv("XDG_DATA_HOME", temp.string().c_str(), 1);
+#endif
+    const auto cached = gen3recomp::cover_cache_path("emerald-usa");
+    std::filesystem::create_directories(cached.parent_path());
+    {
+        std::ofstream out{cached, std::ios::binary};
+        out << "fake-cover-bytes-not-an-image-but-present";
+    }
+    const auto found = gen3recomp::find_cached_cover("emerald-usa");
+    REQUIRE(found.has_value());
+    REQUIRE(*found == cached);
+    std::filesystem::remove_all(temp);
 }
 
 TEST_CASE("mod enablement persists under user data") {

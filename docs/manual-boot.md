@@ -46,13 +46,19 @@ Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml`
 
 `--prepare` is optional/diagnostic only (self-heal warm-up). Do not use it as a substitute for cart AOT.
 
-## Manual checklist (this change)
+## Manual checklist (tauri-react-launcher)
 
-- [ ] Bare `./build/gen3recomp` opens launcher (not usage-only)
-- [ ] Multiple catalogued dumps listed; unknown dump rejected on Add
-- [ ] Emerald Build → Play boots to title at playable speed
-- [ ] Mod enable/disable persists across launcher reopen
-- [ ] In-game mod toggle: N/A (launcher-only; documented)
+- [ ] `cd launcher && npm run tauri:dev` (or release binary) opens HeroUI cover library
+- [ ] Covers appear after online fetch (or placeholders offline)
+- [ ] Build then Play Emerald via launcher on Linux
+- [ ] Unknown ROM rejected in Add ROM; CLI `--rom` still works without Tauri
+- [ ] Bare `./build/gen3recomp` execs launcher when binary is present
+- [ ] Win/macOS: launcher + host recipes followed from README
+
+## Manual checklist (launcher-gui-covers — superseded UI)
+
+- [x] Superseded by Tauri launcher as default player UI (`GEN3RECOMP_SDL_LAUNCHER=1` for legacy)
+
 
 ## Paths
 

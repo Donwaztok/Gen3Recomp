@@ -1,0 +1,21 @@
+# Curated cover image URLs for MVP catalog titles.
+# Images are fetched on demand into user-data cache — never ship blobs in git/Releases (D7).
+# Prefer working Wikimedia file URLs; Cover Project as optional fallback (often 403 to bots).
+
+[ruby-usa]
+primary = "https://upload.wikimedia.org/wikipedia/en/b/be/PokemonRubySapphireBox.jpg"
+fallback = "https://www.thecoverproject.net/images/covers/gbapkmnrubyusa.jpg"
+
+[sapphire-usa]
+primary = "https://upload.wikimedia.org/wikipedia/en/b/be/PokemonRubySapphireBox.jpg"
+fallback = "https://www.thecoverproject.net/images/covers/gbapkmnsapphireusa.jpg"
+
+[sapphire-usa-rev1]
+primary = "https://upload.wikimedia.org/wikipedia/en/b/be/PokemonRubySapphireBox.jpg"
+fallback = "https://www.thecoverproject.net/images/covers/gbapkmnsapphireusa.jpg"
+
+[emerald-usa]
+# https://pt.wikipedia.org/wiki/Ficheiro:Pokémon_Emerald_cover.png
+primary = "https://upload.wikimedia.org/wikipedia/pt/7/72/Pok%C3%A9mon_Emerald_cover.png"
+# https://www.thecoverproject.net/view.php?cover_id=12462
+fallback = "https://www.thecoverproject.net/images/covers/gbapkmnemeraldusa.jpg"

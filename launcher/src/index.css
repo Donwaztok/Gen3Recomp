@@ -1,0 +1,243 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@500;650;750&family=Sora:wght@600;700&display=swap");
+@import "tailwindcss";
+@import "@heroui/styles";
+
+:root,
+.dark,
+[data-theme="dark"] {
+  --g3-ink: #e8ebe6;
+  --g3-foam: #c5d0c4;
+  --g3-moss: #3d9b68;
+  --g3-moss-bright: #5ecf8a;
+  --g3-night: #f4f7f2;
+  --g3-mist: rgba(210, 220, 208, 0.62);
+  --g3-panel: rgba(18, 22, 20, 0.78);
+  --g3-line: rgba(232, 235, 230, 0.1);
+  --g3-amber: #e0a045;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: "Outfit", "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--g3-ink);
+  background:
+    radial-gradient(900px 520px at 92% -12%, rgba(61, 155, 104, 0.22), transparent 55%),
+    radial-gradient(720px 480px at -12% 108%, rgba(224, 160, 69, 0.12), transparent 52%),
+    linear-gradient(165deg, #0c0f0d 0%, #121614 48%, #0a0d0b 100%);
+  background-attachment: fixed;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.g3-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 1.35rem 1.6rem 1.1rem;
+  box-sizing: border-box;
+}
+
+.g3-brand {
+  font-family: "Sora", "Outfit", sans-serif;
+  font-size: clamp(1.85rem, 3.2vw, 2.4rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  margin: 0;
+  color: var(--g3-night);
+  animation: rise-in 0.5s ease both;
+}
+
+.g3-brand-accent {
+  color: var(--g3-moss-bright);
+}
+
+.g3-tagline {
+  margin: 0.5rem 0 0;
+  color: var(--g3-mist);
+  max-width: 34rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.45;
+  animation: rise-in 0.65s ease both;
+}
+
+.g3-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(172px, 210px));
+  justify-content: start;
+  gap: 1.35rem 1.45rem;
+  margin-top: 1.5rem;
+  flex: 1;
+  align-content: start;
+  overflow: auto;
+  padding: 0.4rem 0.25rem 0.85rem;
+}
+
+.g3-tile {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  animation: rise-in 0.55s ease both;
+  transition: transform 0.22s ease;
+}
+
+.g3-tile:hover {
+  transform: translateY(-5px);
+}
+
+.g3-tile:focus-visible {
+  outline: 2px solid var(--g3-moss-bright);
+  outline-offset: 5px;
+  border-radius: 0.75rem;
+}
+
+.g3-tile.is-selected .g3-cover {
+  box-shadow:
+    0 0 0 2px var(--g3-moss-bright),
+    0 18px 36px rgba(0, 0, 0, 0.55);
+  transform: translateY(-1px);
+}
+
+.g3-cover {
+  aspect-ratio: 3 / 4;
+  width: 100%;
+  border-radius: 0.9rem;
+  overflow: hidden;
+  background: linear-gradient(160deg, #101613, #1a3d2a 55%, #2a5a40);
+  display: grid;
+  place-items: center;
+  transition:
+    box-shadow 0.22s ease,
+    transform 0.22s ease;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--g3-line);
+}
+
+.g3-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+}
+
+/* Dual Ruby/Sapphire Wikipedia sheet: crop each half into a clean front cover */
+.g3-cover--ruby-usa img {
+  object-position: 12% 42%;
+  transform: scale(1.35);
+  transform-origin: 12% 42%;
+}
+
+.g3-cover--sapphire-usa img,
+.g3-cover--sapphire-usa-rev1 img {
+  object-position: 88% 42%;
+  transform: scale(1.35);
+  transform-origin: 88% 42%;
+}
+
+.g3-cover--emerald-usa img {
+  object-position: center 20%;
+  transform: scale(1.02);
+  transform-origin: center 20%;
+}
+
+.g3-placeholder {
+  color: var(--g3-foam);
+  font-family: "Sora", "Outfit", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.85rem;
+  animation: soft-pulse 2.4s ease-in-out infinite;
+}
+
+.g3-tile-meta {
+  margin-top: 0.6rem;
+  padding: 0 0.1rem;
+}
+
+.g3-tile-title {
+  font-size: 0.95rem;
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: -0.015em;
+  color: var(--g3-ink);
+}
+
+.g3-tile-sub {
+  margin: 0.22rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--g3-mist);
+}
+
+.g3-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.95rem 0.15rem 0.15rem;
+  border-top: 1px solid var(--g3-line);
+  margin-top: 0.35rem;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.25));
+}
+
+.g3-status {
+  font-size: 0.82rem;
+  color: var(--g3-mist);
+  max-width: 42rem;
+}
+
+.g3-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.g3-empty {
+  margin: 2.8rem auto;
+  text-align: center;
+  color: var(--g3-mist);
+  max-width: 24rem;
+  animation: rise-in 0.5s ease both;
+}
+
+.g3-mod-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--g3-line);
+}

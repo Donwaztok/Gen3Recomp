@@ -1,3 +1,6 @@
-add_library(gen3recomp_app STATIC app.cpp cli.cpp launcher_ui.cpp roms_scan.cpp)
+add_library(gen3recomp_app STATIC app.cpp cli.cpp launcher_ui.cpp roms_scan.cpp cover_art.cpp)
 target_include_directories(gen3recomp_app PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+if(GEN3RECOMP_STB_INCLUDE_DIR)
+    target_include_directories(gen3recomp_app PRIVATE "${GEN3RECOMP_STB_INCLUDE_DIR}")
+endif()
 target_link_libraries(gen3recomp_app PUBLIC gen3recomp_core gen3recomp_game gen3recomp_platform gen3recomp_video gen3recomp_audio gen3recomp_input gen3recomp_runtime gen3recomp_recomp)

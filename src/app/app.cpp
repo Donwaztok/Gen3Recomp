@@ -21,6 +21,11 @@
 #include <optional>
 #include <spdlog/spdlog.h>
 #include <string>
+#include <vector>
+
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -45,6 +50,65 @@ std::optional<std::filesystem::path> exe_parent_dir(char* argv0) {
         return std::nullopt;
     }
     return path.parent_path();
+}
+
+std::optional<std::filesystem::path> find_tauri_launcher(char* argv0) {
+    if (const char* override_path = std::getenv("GEN3RECOMP_LAUNCHER");
+        override_path != nullptr && *override_path != '\0') {
+        std::filesystem::path p{override_path};
+        if (std::filesystem::is_regular_file(p)) {
+            return p;
+        }
+    }
+
+    std::vector<std::filesystem::path> candidates;
+#if defined(_WIN32)
+    const char* name = "gen3recomp-launcher.exe";
+#else
+    const char* name = "gen3recomp-launcher";
+#endif
+    if (const auto parent = exe_parent_dir(argv0); parent.has_value()) {
+        candidates.push_back(*parent / name);
+        candidates.push_back(*parent / "launcher" / name);
+    }
+    candidates.emplace_back(name);
+    candidates.push_back(std::filesystem::path{"launcher"} / "src-tauri" / "target" / "release" / name);
+    candidates.push_back(std::filesystem::path{"launcher"} / "src-tauri" / "target" / "debug" / name);
+
+    for (const auto& c : candidates) {
+        std::error_code ec;
+        if (std::filesystem::is_regular_file(c, ec)) {
+            return std::filesystem::absolute(c, ec);
+        }
+    }
+    return std::nullopt;
+}
+
+int try_exec_tauri_launcher(char* argv0) {
+    const auto launcher = find_tauri_launcher(argv0);
+    if (!launcher.has_value()) {
+        std::fputs(
+            "Player UI: gen3recomp-launcher not found.\n"
+            "Build it: cd launcher && npm install && npm run tauri:build\n"
+            "Or set GEN3RECOMP_LAUNCHER, or use --rom <path> for CLI play.\n"
+            "Legacy SDL launcher: set GEN3RECOMP_SDL_LAUNCHER=1\n",
+            stderr);
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
+
+#if defined(_WIN32)
+    const std::string cmd = "\"" + launcher->string() + "\"";
+    const int rc = std::system(cmd.c_str());
+    return rc == 0 ? static_cast<int>(gen3recomp::ExitCode::Ok)
+                   : static_cast<int>(gen3recomp::ExitCode::InputError);
+#else
+    std::string path = launcher->string();
+    char* arg0 = path.data();
+    char* args[] = {arg0, nullptr};
+    execv(path.c_str(), args);
+    std::perror("execv gen3recomp-launcher");
+    return static_cast<int>(gen3recomp::ExitCode::InputError);
+#endif
 }
 
 int run_session_for_rom(
@@ -180,23 +244,27 @@ int run_app(int argc, char** argv) {
     }
 
     if (parsed.request.open_launcher) {
-        const auto preferred_bios = resolve_bios_path(parsed.request);
-        const auto launcher = gen3recomp::run_launcher_ui(preferred_bios, exe_parent_dir(argv[0]));
-        if (!launcher.play) {
-            if (!launcher.message.empty()) {
-                std::fputs(launcher.message.c_str(), stderr);
+        if (const char* sdl = std::getenv("GEN3RECOMP_SDL_LAUNCHER");
+            sdl != nullptr && *sdl != '\0' && std::string{sdl} != "0") {
+            const auto preferred_bios = resolve_bios_path(parsed.request);
+            const auto launcher = gen3recomp::run_launcher_ui(preferred_bios, exe_parent_dir(argv[0]));
+            if (!launcher.play) {
+                if (!launcher.message.empty()) {
+                    std::fputs(launcher.message.c_str(), stderr);
+                }
+                return static_cast<int>(launcher.code);
             }
-            return static_cast<int>(launcher.code);
+            if (!launcher.rom_path.has_value() || !launcher.bios_path.has_value()) {
+                std::fputs("error: launcher Play missing ROM or BIOS path\n", stderr);
+                return static_cast<int>(gen3recomp::ExitCode::InputError);
+            }
+            return run_session_for_rom(
+                *launcher.rom_path,
+                *launcher.bios_path,
+                false,
+                3600);
         }
-        if (!launcher.rom_path.has_value() || !launcher.bios_path.has_value()) {
-            std::fputs("error: launcher Play missing ROM or BIOS path\n", stderr);
-            return static_cast<int>(gen3recomp::ExitCode::InputError);
-        }
-        return run_session_for_rom(
-            *launcher.rom_path,
-            *launcher.bios_path,
-            false,
-            3600);
+        return try_exec_tauri_launcher(argv[0]);
     }
 
     const auto bios_path = resolve_bios_path(parsed.request);
