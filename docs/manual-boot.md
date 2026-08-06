@@ -8,33 +8,51 @@ MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald at playa
 - GBA BIOS (`gba_bios.bin` or `--bios`)
 - `git submodule update --init --recursive`
 - SDL2 + SDL3
+- Host C++ toolchain (`c++` on PATH) for the one-time cart Build
 
-## Build (full-speed path)
+## Build host
 
 ```sh
 cmake -S . -B build
 cmake --build build --target gba_recompile gen3recomp
 ./scripts/recompile_user_bios.sh /path/to/gba_bios.bin
-./scripts/build_cart_artifact.sh /path/to/game.gba
-cmake -DGEN3RECOMP_CART_ARTIFACT="$HOME/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so" \
-  -S . -B build
-cmake --build build -j"$(nproc)" --target gen3recomp
 ctest --test-dir build --output-on-failure
 ```
 
-Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml` (auto-selected by ROM SHA-1).
-
-**Dev link mode:** `./scripts/recompile_user_rom.sh` → `generated/rom/` → reconfigure without `GEN3RECOMP_CART_ARTIFACT` (multi-minute compile into the exe).
-
-## Launch
+## Player path (launcher)
 
 ```sh
+./build/gen3recomp
+```
+
+1. Confirm BIOS status is OK
+2. Select Emerald (or R/S) from the `roms/` list — do not expect silent autoplay
+3. Press **B** Build once if AOT is missing (progress in status line)
+4. Press **Enter** Play when unlocked
+5. Expect log: `activated cart artifact via dlopen` and `coverage=runtime-loaded-artifact` (or linked-* for dev builds)
+
+## CLI path
+
+```sh
+./scripts/build_cart_artifact.sh /path/to/game.gba   # optional if built from UI
 ./build/gen3recomp --rom /path/to/game.gba --bios /path/to/gba_bios.bin
 ```
 
-Expect log lines: `static_cart=true` and `cart coverage=linked-artifact` (or `linked-generated-rom`). IWRAM PCs (`0x0300….`) may still heal once into `recomp_cache/`.
+Stock hosts dlopen the user-data `libcart.so`. Optional contributor link: `-DGEN3RECOMP_CART_ARTIFACT=…`.
+
+Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml` (auto-selected by ROM SHA-1).
+
+**Dev link mode:** `./scripts/recompile_user_rom.sh` → `generated/rom/` → reconfigure without cart artifact (multi-minute compile into the exe).
 
 `--prepare` is optional/diagnostic only (self-heal warm-up). Do not use it as a substitute for cart AOT.
+
+## Manual checklist (this change)
+
+- [ ] Bare `./build/gen3recomp` opens launcher (not usage-only)
+- [ ] Multiple catalogued dumps listed; unknown dump rejected on Add
+- [ ] Emerald Build → Play boots to title at playable speed
+- [ ] Mod enable/disable persists across launcher reopen
+- [ ] In-game mod toggle: N/A (launcher-only; documented)
 
 ## Paths
 
@@ -43,8 +61,23 @@ Expect log lines: `static_cart=true` and `cart coverage=linked-artifact` (or `li
 | Cartridge save | `~/.local/share/gen3recomp/saves/<sha1>.sav` |
 | Cart AOT `.so` | `~/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so` |
 | IWRAM / heal DLLs | `~/.local/share/gen3recomp/recomp_cache/<sha1>/` |
+| Mod enablement | `~/.local/share/gen3recomp/mods_enabled.txt` |
 
 ## Controls
+
+### Launcher
+
+| Key | Action |
+|-----|--------|
+| Up/Down | Select ROM or mod |
+| A | Add ROM… |
+| B | Build cart AOT |
+| Enter / X | Play (when ready) |
+| M | Mods panel |
+| R | Refresh |
+| Esc / Q | Quit |
+
+### In-game
 
 | Key | GBA |
 |-----|-----|
@@ -63,11 +96,12 @@ Expect log lines: `static_cart=true` and `cart coverage=linked-artifact` (or `li
 Date:
 Host:
 Binary: gen3recomp
-gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
-Cart coverage: linked-artifact / linked-generated-rom / heal-only
+gba-recomp pin: (see third_party/gbarecomp)
+Cart coverage: runtime-loaded-artifact / linked-artifact / linked-generated-rom / heal-only
 
 Emerald USA
 - SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
+- Launcher Build/Play: yes/no
 - Title screen visible: yes/no
 - Playable speed with static AOT: yes/no
 - IWRAM heal leftovers: yes/no
@@ -79,28 +113,4 @@ Ruby USA
 Sapphire USA
 - SHA-1: 3ccbbd45f8553c36463f13b938e833f652b793e4
 - Title screen visible: yes/no/pending dump
-```
-
-## Notes
-
-Upstream `run_game` owns the playable window (SDL2). Leave present-in-place enabled. Do not use `--frames --no-window` for acceptance.
-
-## Local results (2026-08-05)
-
-```
-Date: 2026-08-05
-Host: Linux
-Binary: gen3recomp (static cart linked)
-gba-recomp pin: 2952aff2bb42f49de5903acf22af8fea3e2e3dee
-Cart coverage: linked-generated-rom (64 shards, kDispatchTableLen=137650)
-
-Emerald USA
-- SHA-1: f3ae088181bf583e55daf962a92bb46f4f1d07b7
-- BIOS intro / HLE note: local BIOS recomp + --no-bios-hle; Flash1M; SDL software
-- Title screen visible: yes (static_cart=true); IWRAM PCs healed (~62) under 0x0300….
-- Audio / input: upstream SDL2 host map
-- In-game save: ~/.local/share/gen3recomp/saves/<sha1>.sav
-
-Ruby / Sapphire USA
-- AOT configs landed; boot pending local dumps
 ```

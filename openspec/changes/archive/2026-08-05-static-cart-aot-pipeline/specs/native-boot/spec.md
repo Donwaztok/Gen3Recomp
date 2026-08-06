@@ -3,6 +3,11 @@
 ### Requirement: Emerald USA reaches the title screen
 With a catalogued Emerald USA ROM, valid BIOS, and local static cart AOT present (developer corpus or user-data cart artifact), the application MUST execute native game code through the BIOS intro to the title screen at playable speed. Without static cart AOT, boot MAY still reach the title screen via self-heal but MUST NOT be documented as the full-speed product path.
 
+#### Scenario: Emerald boot
+- **GIVEN** valid Emerald USA ROM and BIOS
+- **WHEN** the user launches gen3recomp
+- **THEN** the BIOS intro plays and the Emerald title screen becomes visible without using an external emulator
+
 #### Scenario: Emerald boot with static AOT
 - **GIVEN** valid Emerald USA ROM, valid BIOS, and static cart AOT for that dump
 - **WHEN** the user launches gen3recomp

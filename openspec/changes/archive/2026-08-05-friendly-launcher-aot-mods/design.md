@@ -74,5 +74,12 @@ Rollback: `--rom` CLI and heal-only/stub path remain.
 
 ## Open Questions
 
-- Exact ImGui (or alternative) packaging via FetchContent vs system package—decide at apply without changing specs.
-- Whether in-game mod toggle fits the first apply slice or is explicitly deferred after a spike against upstream `run_game` ownership.
+- Exact ImGui (or alternative) packaging via FetchContent vs system package—**resolved at apply:** SDL3 `SDL_RenderDebugText` + native file dialogs (no ImGui dependency).
+- Whether in-game mod toggle fits the first apply slice—**resolved:** deferred. Upstream `run_game` owns the window/loop; launcher-only enablement for this change (documented in README / manual-boot).
+
+## Apply notes (1.3 spike)
+
+Upstream `kDispatchTable` is link-time. Minimal pin-local API added:
+
+- `runtime_set_cart_dispatch(const void* table, unsigned len)` in `third_party/gbarecomp/src/armv4t/runtime_arm.{h,cpp}`
+- Host `try_activate_cart_artifact` dlopens user-data `libcart.so`, `dlsym`s `kDispatchTable` / `kDispatchTableLen`, registers override, keeps the handle loaded.

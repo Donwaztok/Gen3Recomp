@@ -18,13 +18,13 @@ Architecture Decision Records for the MVP. Newest first inside each group only w
 
 **Rejected:** Integrating gba-recomp before any window exists. That piles provider bring-up, SDL, and boot debugging into one step.
 
-## D3 — App is a thin launcher, not a GUI product
+## D3 — Player launcher UI; CLI remains supported
 
-**Decision:** MVP launcher is CLI-first: `gen3recomp --rom <path> [--bios <path>]`. If ROM is omitted, use one native file dialog via SDL3. No ImGui/Qt launcher shell.
+**Decision:** The default player path (no `--rom`) opens a small launcher UI to select catalogued dumps, run the cart AOT gate, manage mods, and Play. Power users and automation keep `gen3recomp --rom <path> [--bios <path>]`.
 
-**Why:** The goal is native boot, not a frontend. A pretty launcher can come later without changing Runtime.
+**Why:** End users will not run CMake. Local cart AOT (D7) still happens on their machine; the UI only orchestrates it.
 
-**Rejected:** Immediate multi-page launcher UI, cover art browser, or settings app.
+**Rejected:** CLI-only forever; silent autoplay of the first `.gba` in a folder; shipping prebuilt cart objects in Releases.
 
 ## D4 — Do not reimplement the GBA PPU/APU
 

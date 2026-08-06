@@ -11,7 +11,8 @@ public:
         const std::filesystem::path& bios_path,
         const GameDefinition& game,
         PreparedSession& out,
-        std::string& error) const override;
+        std::string& error,
+        const std::vector<std::string>& enabled_mods = {}) const override;
 };
 
 }

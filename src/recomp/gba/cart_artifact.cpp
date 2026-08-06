@@ -5,70 +5,124 @@
 #include <spdlog/spdlog.h>
 
 #include <filesystem>
+#include <mutex>
+#include <string>
+
+#if defined(GEN3RECOMP_HAS_GBARECOMP)
+#include "runtime_arm.h"
+#endif
+
+#if !defined(_WIN32)
+#include <dlfcn.h>
+#endif
 
 namespace gen3recomp {
+namespace {
 
-// Cart AOT consumption (adapter-private; not a plugin ABI — D6 / D-AOT-2):
-//
-// 1) Prefer CMake -DGEN3RECOMP_CART_ARTIFACT=<user-data libcart.so>
-//    Built once by scripts/build_cart_artifact.sh. Host rebuilds only relink.
-// 2) Else compile gitignored generated/rom/*.cpp into gen3recomp_recomp (dev).
-// 3) Else empty dispatch_stub + runtime self-heal (slow cold ROM PCs).
-//
-// Upstream kDispatchTable is a link-time symbol (runtime_arm.cpp). A dedicated
-// shared library exporting that table is the workable shape without forking
-// gba-recomp registration APIs. Heal-cache DLLs remain for IWRAM overlays only.
+struct LoadedCart {
+    void* handle = nullptr;
+    std::string sha1;
+};
 
-CartCoverageKind detect_cart_coverage(const std::string& rom_sha1) {
-#if defined(GEN3RECOMP_CART_VIA_ARTIFACT)
-    (void)rom_sha1;
-    return CartCoverageKind::LinkedArtifact;
-#elif defined(GEN3RECOMP_HAS_STATIC_CART)
-    (void)rom_sha1;
-    return CartCoverageKind::LinkedGeneratedCorpus;
+std::mutex g_cart_mu;
+LoadedCart g_loaded_cart;
+
+bool host_has_link_time_cart() {
+#if defined(GEN3RECOMP_CART_VIA_ARTIFACT) || defined(GEN3RECOMP_HAS_STATIC_CART)
+    return true;
 #else
-    const auto artifact = cart_artifact_path(rom_sha1);
-    std::error_code error;
-    if (!rom_sha1.empty() && std::filesystem::is_regular_file(artifact, error)) {
-        return CartCoverageKind::UserDataArtifactPresent;
-    }
-    return CartCoverageKind::HealOnly;
+    return false;
 #endif
 }
 
-const char* cart_coverage_label(CartCoverageKind kind) {
-    switch (kind) {
-        case CartCoverageKind::LinkedArtifact:
-            return "linked-artifact";
-        case CartCoverageKind::LinkedGeneratedCorpus:
-            return "linked-generated-rom";
-        case CartCoverageKind::UserDataArtifactPresent:
-            return "user-data-artifact-unlinked";
-        case CartCoverageKind::HealOnly:
-            return "heal-only";
+}  // namespace
+
+void clear_cart_artifact_activation() {
+    std::lock_guard lock{g_cart_mu};
+#if defined(GEN3RECOMP_HAS_GBARECOMP) && !defined(_WIN32)
+    if (g_loaded_cart.handle != nullptr) {
+        runtime_set_cart_dispatch(nullptr, 0);
+        dlclose(g_loaded_cart.handle);
     }
-    return "unknown";
+#endif
+    g_loaded_cart = {};
+    clear_cart_artifact_runtime_loaded();
 }
 
-void log_cart_coverage(const std::string& rom_sha1) {
-    const auto kind = detect_cart_coverage(rom_sha1);
-    const auto artifact = cart_artifact_path(rom_sha1);
-    spdlog::info(
-        "cart coverage={} artifact_path={} (IWRAM overlays still use recomp_cache heal)",
-        cart_coverage_label(kind),
-        artifact.string());
-    if (kind == CartCoverageKind::HealOnly) {
-        spdlog::warn(
-            "static cart AOT missing — ROM PCs self-heal on first visit (slow). "
-            "Build once: ./scripts/build_cart_artifact.sh <rom.gba> then "
-            "cmake -DGEN3RECOMP_CART_ARTIFACT={} -S . -B build && cmake --build build --target gen3recomp",
-            artifact.string());
-    } else if (kind == CartCoverageKind::UserDataArtifactPresent) {
-        spdlog::warn(
-            "cart artifact exists but this binary was not linked against it. "
-            "Reconfigure with -DGEN3RECOMP_CART_ARTIFACT={}",
-            artifact.string());
+bool try_activate_cart_artifact(const std::string& rom_sha1, std::string& error) {
+    if (host_has_link_time_cart()) {
+        spdlog::info("cart dispatch already linked into host; skipping dlopen");
+        return true;
     }
+
+#if !defined(GEN3RECOMP_HAS_GBARECOMP)
+    error = "gba-recomp runtime is not linked";
+    return false;
+#elif defined(_WIN32)
+    error = "runtime cart dlopen is not implemented on Windows in this build";
+    return false;
+#else
+    if (rom_sha1.empty()) {
+        error = "ROM SHA-1 is empty";
+        return false;
+    }
+    if (!cart_artifact_ready(rom_sha1)) {
+        error = "cart artifact not found at " + cart_artifact_path(rom_sha1).string() +
+                " — use Build in the launcher or scripts/build_cart_artifact.sh";
+        return false;
+    }
+
+    std::lock_guard lock{g_cart_mu};
+    if (g_loaded_cart.handle != nullptr && g_loaded_cart.sha1 == rom_sha1) {
+        mark_cart_artifact_runtime_loaded(rom_sha1);
+        return true;
+    }
+
+    if (g_loaded_cart.handle != nullptr) {
+        runtime_set_cart_dispatch(nullptr, 0);
+        dlclose(g_loaded_cart.handle);
+        g_loaded_cart = {};
+        clear_cart_artifact_runtime_loaded();
+    }
+
+    const auto path = cart_artifact_path(rom_sha1);
+    dlerror();
+    void* handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if (handle == nullptr) {
+        const char* detail = dlerror();
+        error = std::string("failed to dlopen cart artifact: ") +
+                (detail != nullptr ? detail : path.string());
+        return false;
+    }
+
+    dlerror();
+    void* table_sym = dlsym(handle, "kDispatchTable");
+    void* len_sym = dlsym(handle, "kDispatchTableLen");
+    const char* sym_err = dlerror();
+    if (table_sym == nullptr || len_sym == nullptr) {
+        error = std::string("cart artifact missing kDispatchTable / kDispatchTableLen") +
+                (sym_err != nullptr ? std::string(": ") + sym_err : "");
+        dlclose(handle);
+        return false;
+    }
+
+    const unsigned len = *static_cast<const unsigned*>(len_sym);
+    if (len == 0) {
+        error = "cart artifact dispatch table length is zero";
+        dlclose(handle);
+        return false;
+    }
+
+    runtime_set_cart_dispatch(table_sym, len);
+    g_loaded_cart.handle = handle;
+    g_loaded_cart.sha1 = rom_sha1;
+    mark_cart_artifact_runtime_loaded(rom_sha1);
+    spdlog::info(
+        "activated cart artifact via dlopen entries={} path={}",
+        len,
+        path.string());
+    return true;
+#endif
 }
 
 }  // namespace gen3recomp

@@ -45,6 +45,8 @@ TEST_CASE("help prints usage and succeeds") {
     REQUIRE(result.message.find("--prepare") != std::string::npos);
     REQUIRE(result.message.find("diagnostic") != std::string::npos);
     REQUIRE(result.message.find("build_cart_artifact") != std::string::npos);
+    REQUIRE(result.message.find("launcher") != std::string::npos);
+    REQUIRE(result.message.find("dlopen") != std::string::npos);
     REQUIRE(result.message.find("Exit codes") != std::string::npos);
 }
 
@@ -62,11 +64,12 @@ TEST_CASE("unknown option is a usage error") {
     REQUIRE(result.message.find("unknown option") != std::string::npos);
 }
 
-TEST_CASE("missing rom option is a usage error") {
+TEST_CASE("missing rom option opens launcher mode") {
     Argv args{{"gen3recomp"}};
     const auto result = gen3recomp::parse_args(args.argc(), args.argv());
-    REQUIRE(result.code == gen3recomp::ExitCode::UsageError);
-    REQUIRE(result.message.find("--rom is required") != std::string::npos);
+    REQUIRE(result.code == gen3recomp::ExitCode::Ok);
+    REQUIRE(result.request.open_launcher);
+    REQUIRE_FALSE(result.request.rom_path.has_value());
 }
 
 TEST_CASE("missing rom file is an input error") {

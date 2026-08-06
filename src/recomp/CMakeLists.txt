@@ -1,12 +1,23 @@
 set(GEN3_ROM_GEN "${CMAKE_SOURCE_DIR}/generated/rom")
-set(GEN3_RECOMP_SOURCES gba/gba_provider.cpp gba/gba_backend.cpp gba/cart_artifact.cpp)
 set(GEN3_HAS_STATIC_CART OFF)
 set(GEN3_CART_VIA_ARTIFACT OFF)
 
-# Prefer a prebuilt cart shared library (one-time compile under user data) over
-# compiling gitignored generated/rom sources into the host on every rebuild.
 set(GEN3RECOMP_CART_ARTIFACT "" CACHE FILEPATH
     "Optional prebuilt libcart.so exporting kDispatchTable (user-data cart AOT)")
+
+# Filesystem/build helpers with no gba-recomp / SDL2 — reusable from the SDL3 host DSO.
+add_library(gen3recomp_cartutil STATIC
+    gba/cart_coverage.cpp
+    gba/cart_build.cpp
+    gba/mods.cpp)
+target_include_directories(gen3recomp_cartutil PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/gba")
+target_link_libraries(gen3recomp_cartutil PUBLIC gen3recomp_core gen3recomp_game)
+target_compile_definitions(gen3recomp_cartutil PRIVATE
+    "GEN3RECOMP_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
+
+set(GEN3_RECOMP_SOURCES gba/gba_provider.cpp gba/gba_backend.cpp gba/cart_artifact.cpp)
 
 if(GEN3RECOMP_CART_ARTIFACT AND EXISTS "${GEN3RECOMP_CART_ARTIFACT}")
     add_library(gen3recomp_cart_artifact SHARED IMPORTED GLOBAL)
@@ -35,11 +46,23 @@ if(NOT GEN3_HAS_STATIC_CART)
     message(STATUS "gen3recomp: no cart artifact or generated/rom — empty cart dispatch (self-heal only)")
 endif()
 
+if(GEN3_HAS_STATIC_CART)
+    target_compile_definitions(gen3recomp_cartutil PUBLIC GEN3RECOMP_HAS_STATIC_CART=1)
+    if(GEN3_CART_VIA_ARTIFACT)
+        target_compile_definitions(gen3recomp_cartutil PUBLIC GEN3RECOMP_CART_VIA_ARTIFACT=1)
+    endif()
+endif()
+
 add_library(gen3recomp_recomp STATIC ${GEN3_RECOMP_SOURCES})
 target_include_directories(gen3recomp_recomp PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}"
     "${CMAKE_CURRENT_SOURCE_DIR}/gba")
-target_link_libraries(gen3recomp_recomp PUBLIC gen3recomp_core gen3recomp_game gen3recomp_runtime)
+target_link_libraries(gen3recomp_recomp PUBLIC gen3recomp_cartutil gen3recomp_runtime)
+target_compile_definitions(gen3recomp_recomp PRIVATE
+    "GEN3RECOMP_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
+if(UNIX)
+    target_link_libraries(gen3recomp_recomp PUBLIC ${CMAKE_DL_LIBS})
+endif()
 if(TARGET gbarecomp_runtime)
     target_link_libraries(gen3recomp_recomp PRIVATE gbarecomp_runtime)
     target_compile_definitions(gen3recomp_recomp PRIVATE GEN3RECOMP_HAS_GBARECOMP=1)
@@ -49,7 +72,6 @@ if(TARGET gbarecomp_runtime)
         "${GEN3_ROM_GEN}")
 endif()
 if(GEN3_CART_VIA_ARTIFACT)
-    # PUBLIC so gen3recomp / tests DT_NEEDED the cart .so and resolve kDispatchTable.
     target_link_libraries(gen3recomp_recomp PUBLIC gen3recomp_cart_artifact)
 endif()
 if(GEN3_HAS_STATIC_CART)

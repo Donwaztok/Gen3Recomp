@@ -15,12 +15,14 @@ bool file_exists(const std::string& path) {
 }  // namespace
 
 std::string usage_text() {
-    return "Usage: gen3recomp --rom <path> [--bios <path>] [--prepare [frames]]\n"
+    return "Usage: gen3recomp [--rom <path>] [--bios <path>] [--prepare [frames]]\n"
            "       gen3recomp --help\n"
            "       gen3recomp --version\n"
            "\n"
+           "With no --rom, opens the launcher UI (ROM list, AOT Build/Play, mods).\n"
+           "\n"
            "Options:\n"
-           "  --rom <path>         Path to a legally obtained GBA ROM (required)\n"
+           "  --rom <path>         Path to a legally obtained GBA ROM (CLI path)\n"
            "  --bios <path>        Path to a legally obtained GBA BIOS\n"
            "                       (or ./gba_bios.bin in the working directory)\n"
            "  --prepare [frames]   Optional diagnostic: warm self-heal cache only\n"
@@ -28,11 +30,11 @@ std::string usage_text() {
            "  --help               Show this help text\n"
            "  --version            Print version identity\n"
            "\n"
-           "Full-speed play: build local cart AOT once\n"
+           "Full-speed play: build local cart AOT once (launcher Build, or)\n"
            "  ./scripts/build_cart_artifact.sh <rom.gba>\n"
-           "  cmake -DGEN3RECOMP_CART_ARTIFACT=... -S . -B build && cmake --build build\n"
+           "Stock hosts dlopen the resulting libcart.so — no CMake relink required.\n"
            "\n"
-           "Controls:\n"
+           "Controls (in-game):\n"
            "  Arrows  D-pad     X  A     Z  B\n"
            "  Enter   Start     Right Shift  Select\n"
            "  C       L         V  R     Esc/Q  quit\n"
@@ -40,7 +42,7 @@ std::string usage_text() {
            "Exit codes:\n"
            "  0  success\n"
            "  1  input error (missing file or invalid path)\n"
-           "  2  usage error (unknown option or missing --rom)\n";
+           "  2  usage error (unknown option)\n";
 }
 
 ParseResult parse_args(int argc, char** argv) {
@@ -107,8 +109,7 @@ ParseResult parse_args(int argc, char** argv) {
     }
 
     if (!result.request.rom_path.has_value()) {
-        result.code = ExitCode::UsageError;
-        result.message = "error: --rom is required\n\n" + usage_text();
+        result.request.open_launcher = true;
         return result;
     }
 

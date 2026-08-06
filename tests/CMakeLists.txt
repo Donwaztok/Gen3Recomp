@@ -1,4 +1,4 @@
-add_executable(gen3recomp_tests smoke.cpp launcher.cpp sha1.cpp identification.cpp video.cpp platform.cpp session.cpp recomp_provider.cpp input.cpp audio.cpp saves.cpp)
+add_executable(gen3recomp_tests smoke.cpp launcher.cpp launcher_aot.cpp sha1.cpp identification.cpp video.cpp platform.cpp session.cpp recomp_provider.cpp input.cpp audio.cpp saves.cpp)
 target_link_libraries(gen3recomp_tests PRIVATE gen3recomp_app Catch2::Catch2WithMain)
 if(TARGET gbarecomp_runtime)
     target_link_libraries(gen3recomp_tests PRIVATE

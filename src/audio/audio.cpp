@@ -1,7 +1,9 @@
 #include "audio.hpp"
+#include "sdl3_dyn.hpp"
 
-#include <SDL3/SDL.h>
 #include <spdlog/spdlog.h>
+
+#include <string>
 
 namespace gen3recomp {
 
@@ -12,8 +14,13 @@ struct AudioDevice::Impl {
 
 bool AudioDevice::init(int sample_rate) {
     shutdown();
-    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
-        spdlog::error("host audio init failed: {}", SDL_GetError());
+    std::string error;
+    if (!sdl3::load(error)) {
+        spdlog::error("host audio SDL3 load failed: {}", error);
+        return false;
+    }
+    if (!sdl3::InitSubSystem(SDL_INIT_AUDIO)) {
+        spdlog::error("host audio init failed: {}", sdl3::GetError());
         return false;
     }
 
@@ -23,15 +30,15 @@ bool AudioDevice::init(int sample_rate) {
         .channels = 1,
         .freq = sample_rate,
     };
-    impl_->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+    impl_->stream = sdl3::OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
     if (impl_->stream == nullptr) {
-        spdlog::error("host audio device unavailable: {}", SDL_GetError());
+        spdlog::error("host audio device unavailable: {}", sdl3::GetError());
         shutdown();
         return false;
     }
-    impl_->device = SDL_GetAudioStreamDevice(impl_->stream);
-    if (!SDL_ResumeAudioDevice(impl_->device)) {
-        spdlog::error("host audio resume failed: {}", SDL_GetError());
+    impl_->device = sdl3::GetAudioStreamDevice(impl_->stream);
+    if (!sdl3::ResumeAudioDevice(impl_->device)) {
+        spdlog::error("host audio resume failed: {}", sdl3::GetError());
         shutdown();
         return false;
     }
@@ -41,23 +48,28 @@ bool AudioDevice::init(int sample_rate) {
 
 void AudioDevice::shutdown() {
     available_ = false;
+    if (sdl3::QuitSubSystem == nullptr) {
+        delete impl_;
+        impl_ = nullptr;
+        return;
+    }
     if (impl_ == nullptr) {
-        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        sdl3::QuitSubSystem(SDL_INIT_AUDIO);
         return;
     }
     if (impl_->stream != nullptr) {
-        SDL_DestroyAudioStream(impl_->stream);
+        sdl3::DestroyAudioStream(impl_->stream);
     }
     delete impl_;
     impl_ = nullptr;
-    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    sdl3::QuitSubSystem(SDL_INIT_AUDIO);
 }
 
 void AudioDevice::queue(std::span<const std::int16_t> samples) {
     if (!available_ || impl_ == nullptr || impl_->stream == nullptr || samples.empty()) {
         return;
     }
-    SDL_PutAudioStreamData(
+    sdl3::PutAudioStreamData(
         impl_->stream,
         samples.data(),
         static_cast<int>(samples.size_bytes()));

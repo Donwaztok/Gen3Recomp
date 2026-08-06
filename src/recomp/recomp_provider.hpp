@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace gen3recomp {
 
@@ -21,7 +22,8 @@ public:
         const std::filesystem::path& bios_path,
         const GameDefinition& game,
         PreparedSession& out,
-        std::string& error) const = 0;
+        std::string& error,
+        const std::vector<std::string>& enabled_mods = {}) const = 0;
 };
 
 }

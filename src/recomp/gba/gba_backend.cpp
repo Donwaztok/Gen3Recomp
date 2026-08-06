@@ -83,19 +83,34 @@ bool GbaSessionBackend::start() {
 #else
     started_ = true;
     log_cart_coverage(game_.sha1);
+    {
+        std::string activate_error;
+        if (cart_artifact_ready(game_.sha1) &&
+            !try_activate_cart_artifact(game_.sha1, activate_error)) {
+            spdlog::error("cart activation failed: {}", activate_error);
+            started_ = false;
+            return false;
+        }
+    }
 #if defined(GEN3RECOMP_HAS_STATIC_CART)
     constexpr bool kStaticCart = true;
 #else
-    constexpr bool kStaticCart = false;
+    constexpr bool kStaticCart =
+        false;  // may still be runtime-loaded; see coverage log
 #endif
+    const auto coverage = detect_cart_coverage(game_.sha1);
+    const bool static_cart =
+        kStaticCart || coverage == CartCoverageKind::RuntimeLoaded ||
+        coverage == CartCoverageKind::UserDataArtifactPresent;
     spdlog::info(
-        "gba-recomp adapter launching id={} cache={} save={} rom={} bios={} static_cart={}",
+        "gba-recomp adapter launching id={} cache={} save={} rom={} bios={} static_cart={} coverage={}",
         game_.id,
         cache_dir_.string(),
         save_path_.string(),
         rom_path_.string(),
         bios_path_.string(),
-        kStaticCart);
+        static_cart,
+        cart_coverage_label(coverage));
 
     const auto config_path = cache_dir_ / "game.toml";
     if (!write_game_config(config_path, rom_path_, bios_path_, save_path_, game_)) {

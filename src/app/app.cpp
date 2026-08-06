@@ -4,8 +4,10 @@
 #include "catalog.hpp"
 #include "cli.hpp"
 #include "file_bytes.hpp"
+#include "launcher_ui.hpp"
 #include "logging.hpp"
 #include "gba_provider.hpp"
+#include "mods.hpp"
 #include "null_backend.hpp"
 #include "platform.hpp"
 #include "session.hpp"
@@ -33,29 +35,24 @@ std::optional<std::filesystem::path> resolve_bios_path(const gen3recomp::LaunchR
     return std::nullopt;
 }
 
-}  // namespace
-
-int run_app(int argc, char** argv) {
-    init_logging();
-
-    const auto parsed = gen3recomp::parse_args(argc, argv);
-
-    if (parsed.request.show_help) {
-        std::fputs(parsed.message.c_str(), stdout);
-        return static_cast<int>(gen3recomp::ExitCode::Ok);
+std::optional<std::filesystem::path> exe_parent_dir(char* argv0) {
+    if (argv0 == nullptr || *argv0 == '\0') {
+        return std::nullopt;
     }
-
-    if (parsed.request.show_version) {
-        std::printf("gen3recomp %s\n", GEN3RECOMP_VERSION);
-        return static_cast<int>(gen3recomp::ExitCode::Ok);
+    std::error_code error;
+    auto path = std::filesystem::absolute(argv0, error);
+    if (error) {
+        return std::nullopt;
     }
+    return path.parent_path();
+}
 
-    if (parsed.code != gen3recomp::ExitCode::Ok) {
-        std::fputs(parsed.message.c_str(), stderr);
-        return static_cast<int>(parsed.code);
-    }
-
-    const auto rom_sha1 = sha1_file(*parsed.request.rom_path);
+int run_session_for_rom(
+    const std::filesystem::path& rom_path,
+    const std::filesystem::path& bios_path,
+    bool prepare_cache,
+    int prepare_frames) {
+    const auto rom_sha1 = sha1_file(rom_path);
     const auto catalog = gen3recomp::Catalog::builtin();
     const auto game = catalog.find_by_sha1(rom_sha1);
     if (!game.has_value()) {
@@ -69,16 +66,7 @@ int run_app(int argc, char** argv) {
         return static_cast<int>(gen3recomp::ExitCode::InputError);
     }
 
-    const auto bios_path = resolve_bios_path(parsed.request);
-    if (!bios_path.has_value()) {
-        const char* message =
-            "error: a GBA BIOS is required (--bios <path> or ./gba_bios.bin)\n";
-        std::fputs(message, stderr);
-        spdlog::error("missing GBA BIOS");
-        return static_cast<int>(gen3recomp::ExitCode::InputError);
-    }
-
-    const auto bios_sha1 = sha1_file(*bios_path);
+    const auto bios_sha1 = sha1_file(bios_path);
     if (!gen3recomp::is_known_bios_sha1(bios_sha1)) {
         const std::string message =
             "error: unsupported GBA BIOS\n"
@@ -94,8 +82,8 @@ int run_app(int argc, char** argv) {
     std::printf("BIOS SHA-1: %s\n", bios_sha1.c_str());
     spdlog::info("identified {} ({}) sha1={}", game->display_name, game->region, rom_sha1);
 
-    if (parsed.request.prepare_cache) {
-        const std::string frames = std::to_string(parsed.request.prepare_frames);
+    if (prepare_cache) {
+        const std::string frames = std::to_string(prepare_frames);
 #if defined(_WIN32)
         _putenv_s("GEN3RECOMP_PREPARE_FRAMES", frames.c_str());
 #else
@@ -105,9 +93,9 @@ int run_app(int argc, char** argv) {
             "Preparing native-code cache for %d guest frames, then exiting.\n"
             "Cache: ~/.local/share/gen3recomp/recomp_cache/%s/\n"
             "Launch again without --prepare to play at full speed.\n",
-            parsed.request.prepare_frames,
+            prepare_frames,
             rom_sha1.c_str());
-        spdlog::info("prepare-cache frames={}", parsed.request.prepare_frames);
+        spdlog::info("prepare-cache frames={}", prepare_frames);
     }
 
     std::unique_ptr<gen3recomp::SessionBackend> owned_backend;
@@ -121,7 +109,8 @@ int run_app(int argc, char** argv) {
         gen3recomp::GbaRecompProvider provider;
         gen3recomp::PreparedSession prepared;
         std::string prepare_error;
-        if (!provider.prepare(*parsed.request.rom_path, *bios_path, *game, prepared, prepare_error)) {
+        const auto mods = gen3recomp::enabled_mod_ids();
+        if (!provider.prepare(rom_path, bios_path, *game, prepared, prepare_error, mods)) {
             const std::string message = "error: recompiler provider failed: " + prepare_error + "\n";
             std::fputs(message.c_str(), stderr);
             spdlog::error("{}", prepare_error);
@@ -166,4 +155,62 @@ int run_app(int argc, char** argv) {
         return static_cast<int>(gen3recomp::ExitCode::InputError);
     }
     return static_cast<int>(gen3recomp::ExitCode::Ok);
+}
+
+}  // namespace
+
+int run_app(int argc, char** argv) {
+    init_logging();
+
+    const auto parsed = gen3recomp::parse_args(argc, argv);
+
+    if (parsed.request.show_help) {
+        std::fputs(parsed.message.c_str(), stdout);
+        return static_cast<int>(gen3recomp::ExitCode::Ok);
+    }
+
+    if (parsed.request.show_version) {
+        std::printf("gen3recomp %s\n", GEN3RECOMP_VERSION);
+        return static_cast<int>(gen3recomp::ExitCode::Ok);
+    }
+
+    if (parsed.code != gen3recomp::ExitCode::Ok) {
+        std::fputs(parsed.message.c_str(), stderr);
+        return static_cast<int>(parsed.code);
+    }
+
+    if (parsed.request.open_launcher) {
+        const auto preferred_bios = resolve_bios_path(parsed.request);
+        const auto launcher = gen3recomp::run_launcher_ui(preferred_bios, exe_parent_dir(argv[0]));
+        if (!launcher.play) {
+            if (!launcher.message.empty()) {
+                std::fputs(launcher.message.c_str(), stderr);
+            }
+            return static_cast<int>(launcher.code);
+        }
+        if (!launcher.rom_path.has_value() || !launcher.bios_path.has_value()) {
+            std::fputs("error: launcher Play missing ROM or BIOS path\n", stderr);
+            return static_cast<int>(gen3recomp::ExitCode::InputError);
+        }
+        return run_session_for_rom(
+            *launcher.rom_path,
+            *launcher.bios_path,
+            false,
+            3600);
+    }
+
+    const auto bios_path = resolve_bios_path(parsed.request);
+    if (!bios_path.has_value()) {
+        const char* message =
+            "error: a GBA BIOS is required (--bios <path> or ./gba_bios.bin)\n";
+        std::fputs(message, stderr);
+        spdlog::error("missing GBA BIOS");
+        return static_cast<int>(gen3recomp::ExitCode::InputError);
+    }
+
+    return run_session_for_rom(
+        *parsed.request.rom_path,
+        *bios_path,
+        parsed.request.prepare_cache,
+        parsed.request.prepare_frames);
 }
