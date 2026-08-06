@@ -79,7 +79,11 @@ bool build_cart_artifact(
         on_log("Starting cart AOT build (may take several minutes)...");
     }
 
+#if defined(_WIN32)
+    FILE* pipe = _popen(command.c_str(), "r");
+#else
     FILE* pipe = popen(command.c_str(), "r");
+#endif
     if (pipe == nullptr) {
         error = "failed to start build_cart_artifact.sh";
         return false;
@@ -99,7 +103,11 @@ bool build_cart_artifact(
         last_lines = line;
     }
 
+#if defined(_WIN32)
+    const int status = _pclose(pipe);
+#else
     const int status = pclose(pipe);
+#endif
     if (status != 0) {
         error = "cart artifact build failed";
         if (!last_lines.empty()) {

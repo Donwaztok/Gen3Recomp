@@ -39,6 +39,13 @@ set(GEN3RECOMP_STB_INCLUDE_DIR "${stb_SOURCE_DIR}" CACHE INTERNAL "")
 list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 
 find_package(SDL3 REQUIRED CONFIG)
+if(TARGET SDL3::Headers)
+    message(STATUS "gen3recomp: SDL3::Headers available")
+elseif(TARGET SDL3::SDL3)
+    message(STATUS "gen3recomp: SDL3::SDL3 available (headers via INTERFACE)")
+else()
+    message(STATUS "gen3recomp: SDL3 found without Headers/SDL3 targets — relying on SDL3_ROOT/include")
+endif()
 
 set(GBARECOMP_DIR "${CMAKE_SOURCE_DIR}/third_party/gbarecomp")
 if(NOT EXISTS "${GBARECOMP_DIR}/CMakeLists.txt")

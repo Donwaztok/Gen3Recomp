@@ -74,7 +74,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: launcher/package-lock.json
 
@@ -90,17 +90,25 @@ jobs:
         if: runner.os != 'Windows'
         env:
           CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
+          SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
         run: |
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
+          ls -la "${SDL3_ROOT}/include/SDL3" || ls -laR "${SDL3_ROOT}/include" | head -40
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}" \
+            -DSDL3_ROOT="${SDL3_ROOT}"
           cmake --build build --target gen3recomp gba_recompile -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
 
       - name: Configure + build host (Windows)
         if: runner.os == 'Windows'
         env:
           CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
+          SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
         shell: pwsh
         run: |
-          cmake -S . -B build -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
+          Get-ChildItem -Recurse "$env:SDL3_ROOT\include" -Filter "SDL.h" | Select-Object -First 5 FullName
+          cmake -S . -B build `
+            -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH" `
+            -DSDL3_ROOT="$env:SDL3_ROOT"
           cmake --build build --config Release --target gen3recomp gba_recompile
 
       - name: Build Tauri launcher
