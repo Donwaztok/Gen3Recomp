@@ -93,6 +93,35 @@ pub fn find_repo_root(start: &Path) -> Option<PathBuf> {
     None
 }
 
+/// Package/install root: parent of `bin/` when the binary lives under `bin/`, else the
+/// directory containing the executable (Release layout or side-by-side binaries).
+pub fn install_root_from_binary(binary: &Path) -> Option<PathBuf> {
+    let dir = binary.parent()?;
+    if dir.file_name().and_then(|n| n.to_str()) == Some("bin") {
+        dir.parent().map(|p| p.to_path_buf())
+    } else {
+        Some(dir.to_path_buf())
+    }
+}
+
+fn looks_like_package_root(root: &Path) -> bool {
+    root.join("bin").is_dir()
+        || root.join("gen3recomp-player").is_file()
+        || root.join("gen3recomp-player.bat").is_file()
+        || root.join("gen3recomp-player.sh").is_file()
+}
+
+fn host_binary_names() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &["gen3recomp.exe", "gen3recomp"]
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        &["gen3recomp"]
+    }
+}
+
 pub fn find_host_binary(repo_root: Option<&Path>) -> Option<PathBuf> {
     if let Ok(override_path) = std::env::var("GEN3RECOMP_HOST") {
         let p = PathBuf::from(override_path);
@@ -100,37 +129,134 @@ pub fn find_host_binary(repo_root: Option<&Path>) -> Option<PathBuf> {
             return Some(p);
         }
     }
+    let names = host_binary_names();
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(cwd) = std::env::current_dir() {
-        candidates.push(cwd.join("build/gen3recomp"));
-        candidates.push(cwd.join("gen3recomp"));
+        for name in names {
+            candidates.push(cwd.join("build").join(name));
+            candidates.push(cwd.join("bin").join(name));
+            candidates.push(cwd.join(name));
+        }
     }
     if let Some(root) = repo_root {
-        candidates.push(root.join("build/gen3recomp"));
+        for name in names {
+            candidates.push(root.join("build").join(name));
+            candidates.push(root.join("bin").join(name));
+        }
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("gen3recomp"));
+            for name in names {
+                candidates.push(dir.join(name));
+            }
+            // Package layout: launcher in bin/, host beside it
+            if dir.file_name().and_then(|n| n.to_str()) == Some("bin") {
+                for name in names {
+                    candidates.push(dir.join(name));
+                }
+            }
         }
     }
     candidates.into_iter().find(|p| p.is_file())
 }
 
-pub fn resolve_bios_path(cwd: &Path) -> Option<PathBuf> {
-    let local = cwd.join("gba_bios.bin");
-    if local.is_file() {
-        return Some(local);
+fn push_unique(dirs: &mut Vec<PathBuf>, path: PathBuf) {
+    if !dirs.iter().any(|d| d == &path) {
+        dirs.push(path);
     }
-    None
 }
 
-pub fn roms_dirs(cwd: &Path, repo_root: Option<&Path>) -> Vec<PathBuf> {
-    let mut dirs = vec![cwd.join("roms")];
-    if let Some(root) = repo_root {
-        let p = root.join("roms");
-        if !dirs.iter().any(|d| d == &p) {
-            dirs.push(p);
+/// ROM scan roots, in priority order (D4):
+/// 1. Package/install root `roms/`
+/// 2. Host-binary parent `roms/` (covers `build/roms` and `bin/roms`)
+/// 3. CWD / repo-root `roms/`
+pub fn roms_dirs(cwd: &Path, repo_root: Option<&Path>, host: Option<&Path>) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(root) = install_root_from_binary(&exe) {
+            push_unique(&mut dirs, root.join("roms"));
+        }
+        if let Some(dir) = exe.parent() {
+            push_unique(&mut dirs, dir.join("roms"));
         }
     }
+
+    if let Some(host) = host {
+        if let Some(root) = install_root_from_binary(host) {
+            push_unique(&mut dirs, root.join("roms"));
+        }
+        if let Some(dir) = host.parent() {
+            push_unique(&mut dirs, dir.join("roms"));
+        }
+    }
+
+    push_unique(&mut dirs, cwd.join("roms"));
+    if let Some(root) = repo_root {
+        push_unique(&mut dirs, root.join("roms"));
+    }
+
     dirs
+}
+
+/// Prefer package/build `roms/` for Add ROM copies; fall back to CWD.
+pub fn preferred_roms_dir(cwd: &Path, repo_root: Option<&Path>, host: Option<&Path>) -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(root) = install_root_from_binary(&exe) {
+            if looks_like_package_root(&root) {
+                return root.join("roms");
+            }
+        }
+    }
+    if let Some(host) = host {
+        if let Some(dir) = host.parent() {
+            let name = dir.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if name == "build" {
+                return dir.join("roms");
+            }
+            if name == "bin" {
+                if let Some(pkg) = dir.parent() {
+                    return pkg.join("roms");
+                }
+            }
+        }
+        if let Some(root) = install_root_from_binary(host) {
+            if looks_like_package_root(&root) {
+                return root.join("roms");
+            }
+        }
+    }
+    if let Some(root) = repo_root {
+        let p = root.join("roms");
+        if p.is_dir() {
+            return p;
+        }
+    }
+    cwd.join("roms")
+}
+
+/// Resolve BIOS from package root, host parent, then CWD.
+pub fn resolve_bios_path(cwd: &Path, host: Option<&Path>) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(root) = install_root_from_binary(&exe) {
+            candidates.push(root.join("gba_bios.bin"));
+        }
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join("gba_bios.bin"));
+        }
+    }
+
+    if let Some(host) = host {
+        if let Some(root) = install_root_from_binary(host) {
+            candidates.push(root.join("gba_bios.bin"));
+        }
+        if let Some(dir) = host.parent() {
+            candidates.push(dir.join("gba_bios.bin"));
+        }
+    }
+
+    candidates.push(cwd.join("gba_bios.bin"));
+    candidates.into_iter().find(|p| p.is_file())
 }

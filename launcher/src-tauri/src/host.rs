@@ -63,10 +63,11 @@ fn context() -> (PathBuf, Option<PathBuf>) {
 
 pub fn refresh_library(fetch_covers: bool) -> LibraryState {
     let (cwd, repo) = context();
+    let host = paths::find_host_binary(repo.as_deref());
     let mut roms = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
-    for dir in paths::roms_dirs(&cwd, repo.as_deref()) {
+    for dir in paths::roms_dirs(&cwd, repo.as_deref(), host.as_deref()) {
         let Ok(entries) = fs::read_dir(&dir) else {
             continue;
         };
@@ -106,7 +107,7 @@ pub fn refresh_library(fetch_covers: bool) -> LibraryState {
     }
     roms.sort_by(|a, b| a.display_name.cmp(&b.display_name).then(a.sha1.cmp(&b.sha1)));
 
-    let bios = match paths::resolve_bios_path(&cwd) {
+    let bios = match paths::resolve_bios_path(&cwd, host.as_deref()) {
         Some(p) => match sha1_file(&p) {
             Ok(sha) if catalog::is_known_bios_sha1(&sha) => BiosStatus {
                 present: true,
@@ -131,11 +132,11 @@ pub fn refresh_library(fetch_covers: bool) -> LibraryState {
             present: false,
             path: None,
             valid: false,
-            message: "Place gba_bios.bin in the working directory".into(),
+            message: "Place gba_bios.bin next to the player package (or in the working directory)"
+                .into(),
         },
     };
 
-    let host = paths::find_host_binary(repo.as_deref());
     LibraryState {
         mods: mods::discover_mods(&cwd, repo.as_deref()),
         roms,
@@ -147,7 +148,8 @@ pub fn refresh_library(fetch_covers: bool) -> LibraryState {
 }
 
 pub fn identify_rom_path(path: &str) -> Result<RomEntry, String> {
-    let (cwd, _) = context();
+    let (cwd, repo) = context();
+    let host = paths::find_host_binary(repo.as_deref());
     let path = PathBuf::from(path);
     if !path.is_file() {
         return Err("file not found".into());
@@ -158,8 +160,8 @@ pub fn identify_rom_path(path: &str) -> Result<RomEntry, String> {
             "unsupported ROM dump (SHA-1 {sha1}). MVP supports USA Ruby, Sapphire, and Emerald only."
         ));
     };
-    // Copy into roms/ if not already there
-    let dest_dir = cwd.join("roms");
+    // Copy into preferred package/build roms/ when possible
+    let dest_dir = paths::preferred_roms_dir(&cwd, repo.as_deref(), host.as_deref());
     fs::create_dir_all(&dest_dir).map_err(|e| e.to_string())?;
     let dest = dest_dir.join(path.file_name().unwrap_or_default());
     if path != dest {

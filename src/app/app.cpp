@@ -29,13 +29,24 @@
 
 namespace {
 
-std::optional<std::filesystem::path> resolve_bios_path(const gen3recomp::LaunchRequest& request) {
+std::optional<std::filesystem::path> resolve_bios_path(
+    const gen3recomp::LaunchRequest& request,
+    const std::optional<std::filesystem::path>& exe_dir) {
     if (request.bios_path.has_value()) {
         return std::filesystem::path{*request.bios_path};
     }
-    const std::filesystem::path local{"gba_bios.bin"};
-    if (std::filesystem::is_regular_file(local)) {
-        return local;
+    std::vector<std::filesystem::path> candidates;
+    if (exe_dir.has_value()) {
+        if (exe_dir->filename() == "bin") {
+            candidates.push_back(exe_dir->parent_path() / "gba_bios.bin");
+        }
+        candidates.push_back(*exe_dir / "gba_bios.bin");
+    }
+    candidates.emplace_back("gba_bios.bin");
+    for (const auto& candidate : candidates) {
+        if (std::filesystem::is_regular_file(candidate)) {
+            return candidate;
+        }
     }
     return std::nullopt;
 }
@@ -246,8 +257,9 @@ int run_app(int argc, char** argv) {
     if (parsed.request.open_launcher) {
         if (const char* sdl = std::getenv("GEN3RECOMP_SDL_LAUNCHER");
             sdl != nullptr && *sdl != '\0' && std::string{sdl} != "0") {
-            const auto preferred_bios = resolve_bios_path(parsed.request);
-            const auto launcher = gen3recomp::run_launcher_ui(preferred_bios, exe_parent_dir(argv[0]));
+            const auto exe_dir = exe_parent_dir(argv[0]);
+            const auto preferred_bios = resolve_bios_path(parsed.request, exe_dir);
+            const auto launcher = gen3recomp::run_launcher_ui(preferred_bios, exe_dir);
             if (!launcher.play) {
                 if (!launcher.message.empty()) {
                     std::fputs(launcher.message.c_str(), stderr);
@@ -267,10 +279,11 @@ int run_app(int argc, char** argv) {
         return try_exec_tauri_launcher(argv[0]);
     }
 
-    const auto bios_path = resolve_bios_path(parsed.request);
+    const auto bios_path = resolve_bios_path(parsed.request, exe_parent_dir(argv[0]));
     if (!bios_path.has_value()) {
         const char* message =
-            "error: a GBA BIOS is required (--bios <path> or ./gba_bios.bin)\n";
+            "error: a GBA BIOS is required (--bios <path>, package-root gba_bios.bin, "
+            "or ./gba_bios.bin)\n";
         std::fputs(message, stderr);
         spdlog::error("missing GBA BIOS");
         return static_cast<int>(gen3recomp::ExitCode::InputError);

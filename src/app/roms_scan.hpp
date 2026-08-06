@@ -15,7 +15,7 @@ struct DiscoveredRom {
     GameDefinition game;
 };
 
-// Scan roms/ beside CWD and optionally beside the executable parent.
+// Scan roms/ beside package/install root, host parent (build/roms), and CWD.
 std::vector<std::filesystem::path> roms_search_roots(
     const std::optional<std::filesystem::path>& exe_dir = std::nullopt);
 

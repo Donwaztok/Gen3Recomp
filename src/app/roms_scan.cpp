@@ -6,6 +6,25 @@
 #include <unordered_set>
 
 namespace gen3recomp {
+namespace {
+
+void push_unique(
+    std::vector<std::filesystem::path>& roots,
+    const std::filesystem::path& path) {
+    if (std::find(roots.begin(), roots.end(), path) == roots.end()) {
+        roots.push_back(path);
+    }
+}
+
+std::optional<std::filesystem::path> install_root_from_dir(
+    const std::filesystem::path& dir) {
+    if (dir.filename() == "bin") {
+        return dir.parent_path();
+    }
+    return dir;
+}
+
+}  // namespace
 
 std::vector<std::filesystem::path> roms_search_roots(
     const std::optional<std::filesystem::path>& exe_dir) {
@@ -13,10 +32,14 @@ std::vector<std::filesystem::path> roms_search_roots(
     std::error_code error;
     const auto cwd = std::filesystem::current_path(error);
     if (!error) {
-        roots.push_back(cwd / "roms");
+        push_unique(roots, cwd / "roms");
     }
     if (exe_dir.has_value()) {
-        roots.push_back(*exe_dir / "roms");
+        // Host beside package root (bin/../roms) and host parent (build/roms).
+        if (auto install = install_root_from_dir(*exe_dir)) {
+            push_unique(roots, *install / "roms");
+        }
+        push_unique(roots, *exe_dir / "roms");
     }
     return roots;
 }

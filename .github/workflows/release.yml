@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub Release (tag builds always publish)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  GEN3RECOMP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('0.0.0-{0}', github.sha) }}
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            os: ubuntu-latest
+            platform: linux-x64
+            package: bash
+          - name: windows-x64
+            os: windows-latest
+            platform: windows-x64
+            package: powershell
+          - name: macos-arm64
+            os: macos-latest
+            platform: macos-arm64
+            package: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup SDL3 (+ sdl2-compat for gba-recomp)
+        uses: libsdl-org/setup-sdl@main
+        id: sdl
+        with:
+          version: 3-latest
+          version-sdl2-compat: 2-latest
+          build-type: Release
+          install-linux-dependencies: true
+          add-to-environment: true
+          discriminator: ${{ matrix.platform }}-sdl3-compat
+
+      - name: Install Linux Tauri / packaging deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config curl zip \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev
+
+      - name: Install macOS packaging deps
+        if: runner.os == 'macOS'
+        run: brew install cmake ninja
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: launcher/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: launcher/src-tauri -> target
+
+      - name: Configure + build host (Unix)
+        if: runner.os != 'Windows'
+        env:
+          CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}"
+          cmake --build build --target gen3recomp gba_recompile -j"$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
+
+      - name: Configure + build host (Windows)
+        if: runner.os == 'Windows'
+        env:
+          CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
+        shell: pwsh
+        run: |
+          cmake -S . -B build -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH"
+          cmake --build build --config Release --target gen3recomp gba_recompile
+
+      - name: Build Tauri launcher
+        working-directory: launcher
+        run: |
+          npm ci
+          npm run tauri build
+
+      - name: Package (Linux / macOS)
+        if: matrix.package == 'bash'
+        env:
+          GEN3RECOMP_PLATFORM: ${{ matrix.platform }}
+          SKIP_BUILD: "1"
+          CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
+        run: |
+          chmod +x scripts/package_release.sh scripts/verify_release_layout.sh
+          ./scripts/package_release.sh
+
+      - name: Package (Windows)
+        if: matrix.package == 'powershell'
+        shell: pwsh
+        env:
+          GEN3RECOMP_VERSION: ${{ env.GEN3RECOMP_VERSION }}
+        run: |
+          ./scripts/package_release.ps1 -SkipBuild -Version $env:GEN3RECOMP_VERSION
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gen3recomp-${{ matrix.platform }}
+          path: dist/release/gen3recomp-*.*
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: github.ref_type == 'tag' || inputs.publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all packages
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.zip' -o -name '*.tar.gz' \) -print -exec cp {} release-assets/ \;
+          ls -la release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('ci-{0}', github.sha) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('CI build {0}', github.sha) }}
+          draft: ${{ github.ref_type != 'tag' }}
+          generate_release_notes: true
+          files: release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

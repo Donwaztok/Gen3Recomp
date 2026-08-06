@@ -4,8 +4,8 @@ MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald at playa
 
 ## Prerequisites
 
-- USA dump(s) under `roms/` (recommended) or any path — `*.gba` is gitignored
-- GBA BIOS (`gba_bios.bin` or `--bios`)
+- USA dump(s) under package/`roms/`, `build/roms/`, or repo `roms/` — `*.gba` is gitignored
+- GBA BIOS (`gba_bios.bin` beside the package/host or `--bios`)
 - `git submodule update --init --recursive`
 - SDL2 + SDL3
 - Host C++ toolchain (`c++` on PATH) for the one-time cart Build
@@ -71,11 +71,13 @@ Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml`
 
 | Kind | Location |
 |------|----------|
-| Cartridge save | `~/.local/share/gen3recomp/saves/<sha1>.sav` |
-| Cart AOT `.so` | `~/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so` |
-| IWRAM / heal DLLs | `~/.local/share/gen3recomp/recomp_cache/<sha1>/` (loaded on demand by default; not all shards at Play start) |
-| Mod enablement | `~/.local/share/gen3recomp/mods_enabled.txt` |
+| Cartridge save | `<user-data>/saves/<sha1>.sav` (Linux default `~/.local/share/gen3recomp`; Windows `%APPDATA%\gen3recomp`; macOS `~/Library/Application Support/gen3recomp`) |
+| Cart AOT `.so` | `<user-data>/cart_aot/<sha1>/abi3-linux-x64/libcart.so` |
+| IWRAM / heal DLLs | `<user-data>/recomp_cache/<sha1>/` (loaded on demand by default; not all shards at Play start) |
+| Mod enablement | `<user-data>/mods_enabled.txt` |
 | Eager heal warm (diag) | `GBARECOMP_HEAL_EAGER_WARM=1` — optional; slows every Play |
+
+End-user download/play/save docs: [player-guide.md](player-guide.md). MVP has no save states.
 
 ## Controls
 
