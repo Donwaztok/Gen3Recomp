@@ -5,8 +5,14 @@ use crate::paths;
 use serde::Serialize;
 use sha1::{Digest, Sha1};
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{AppHandle, Emitter};
+
+/// Single-flight guard: only one cart AOT Build may run at a time.
+static BUILD_IN_FLIGHT: AtomicBool = AtomicBool::new(false);
 
 #[derive(Clone, Debug, Serialize)]
 pub struct RomEntry {
@@ -171,7 +177,89 @@ pub fn identify_rom_path(path: &str) -> Result<RomEntry, String> {
     })
 }
 
-pub fn build_cart(rom_path: &str) -> Result<String, String> {
+#[derive(Clone, Debug, Serialize)]
+pub struct BuildProgressEvent {
+    pub sha1: String,
+    pub phase: String,
+    pub current: u32,
+    pub total: u32,
+    pub percent: f32,
+    pub message: String,
+}
+
+fn phase_percent(phase: &str, current: u32, total: u32) -> f32 {
+    let ratio = if total == 0 {
+        0.0
+    } else {
+        (current as f32 / total as f32).clamp(0.0, 1.0)
+    };
+    match phase {
+        "generate" => 10.0 * ratio,
+        "compile" => 10.0 + 80.0 * ratio,
+        "link" => 90.0 + 10.0 * ratio,
+        "done" => 100.0,
+        _ => (100.0 * ratio).clamp(0.0, 99.0),
+    }
+}
+
+fn parse_progress_line(line: &str, sha1: &str) -> Option<BuildProgressEvent> {
+    let rest = line.strip_prefix("PROGRESS ")?;
+    let mut current = 0u32;
+    let mut total = 0u32;
+    let mut phase = String::from("unknown");
+    for part in rest.split_whitespace() {
+        if let Some(v) = part.strip_prefix("current=") {
+            current = v.parse().unwrap_or(0);
+        } else if let Some(v) = part.strip_prefix("total=") {
+            total = v.parse().unwrap_or(0);
+        } else if let Some(v) = part.strip_prefix("phase=") {
+            phase = v.to_string();
+        }
+    }
+    let percent = phase_percent(&phase, current, total);
+    let message = match phase.as_str() {
+        "generate" => "Generating cart sources…".into(),
+        "compile" => format!("Compiling shards ({current}/{total})…"),
+        "link" => "Linking libcart.so…".into(),
+        "done" => "Cart artifact ready".into(),
+        _ => format!("{phase} {current}/{total}"),
+    };
+    Some(BuildProgressEvent {
+        sha1: sha1.to_string(),
+        phase,
+        current,
+        total,
+        percent,
+        message,
+    })
+}
+
+struct BuildGuard;
+
+impl BuildGuard {
+    fn try_acquire() -> Result<Self, String> {
+        if BUILD_IN_FLIGHT
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return Err(
+                "A cart AOT Build is already running. Wait for it to finish before starting another."
+                    .into(),
+            );
+        }
+        Ok(Self)
+    }
+}
+
+impl Drop for BuildGuard {
+    fn drop(&mut self) {
+        BUILD_IN_FLIGHT.store(false, Ordering::SeqCst);
+    }
+}
+
+pub fn build_cart(app: &AppHandle, rom_path: &str) -> Result<String, String> {
+    let _guard = BuildGuard::try_acquire()?;
+
     let (cwd, repo) = context();
     let Some(root) = repo else {
         return Err("could not find repository root (scripts/build_cart_artifact.sh)".into());
@@ -180,22 +268,108 @@ pub fn build_cart(rom_path: &str) -> Result<String, String> {
     if !script.is_file() {
         return Err("build_cart_artifact.sh missing".into());
     }
-    let output = Command::new("bash")
+
+    let rom = PathBuf::from(rom_path);
+    if !rom.is_file() {
+        return Err("ROM file not found".into());
+    }
+    let sha1 = sha1_file(&rom)?;
+    if catalog::find_by_sha1(&sha1).is_none() {
+        return Err(format!(
+            "unsupported ROM dump (SHA-1 {sha1}). MVP supports USA Ruby, Sapphire, and Emerald only."
+        ));
+    }
+
+    let _ = app.emit(
+        "build-progress",
+        BuildProgressEvent {
+            sha1: sha1.clone(),
+            phase: "generate".into(),
+            current: 0,
+            total: 1,
+            percent: 0.0,
+            message: "Starting cart AOT build…".into(),
+        },
+    );
+
+    // Prefer line-buffered stdout so PROGRESS lines arrive while compiling.
+    let mut child = Command::new("stdbuf")
+        .args(["-oL", "-eL", "bash"])
         .arg(&script)
         .arg(rom_path)
         .current_dir(&root)
-        .output()
-        .map_err(|e| e.to_string())?;
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    if !output.status.success() {
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn();
+
+    if child.is_err() {
+        child = Command::new("bash")
+            .arg(&script)
+            .arg(rom_path)
+            .current_dir(&root)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+    }
+
+    let mut child = child.map_err(|e| e.to_string())?;
+    let stdout = child.stdout.take().ok_or("missing stdout")?;
+    let stderr = child.stderr.take().ok_or("missing stderr")?;
+
+    let app_out = app.clone();
+    let sha1_out = sha1.clone();
+    let stdout_thread = std::thread::spawn(move || {
+        let mut log = String::new();
+        let reader = BufReader::new(stdout);
+        for line in reader.lines().flatten() {
+            log.push_str(&line);
+            log.push('\n');
+            if let Some(ev) = parse_progress_line(line.trim(), &sha1_out) {
+                let _ = app_out.emit("build-progress", ev);
+            }
+        }
+        log
+    });
+
+    let stderr_thread = std::thread::spawn(move || {
+        let mut log = String::new();
+        let reader = BufReader::new(stderr);
+        for line in reader.lines().flatten() {
+            log.push_str(&line);
+            log.push('\n');
+        }
+        log
+    });
+
+    let status = child.wait().map_err(|e| e.to_string())?;
+    let stdout_log = stdout_thread.join().unwrap_or_default();
+    let stderr_log = stderr_thread.join().unwrap_or_default();
+
+    if !status.success() {
         return Err(format!(
-            "Build failed (exit {:?})\n{stderr}\n{stdout}",
-            output.status.code()
+            "Build failed (exit {:?})\n{stderr_log}\n{stdout_log}",
+            status.code()
         ));
     }
+
+    let _ = app.emit(
+        "build-progress",
+        BuildProgressEvent {
+            sha1,
+            phase: "done".into(),
+            current: 1,
+            total: 1,
+            percent: 100.0,
+            message: "Cart artifact ready".into(),
+        },
+    );
+
     let _ = cwd;
-    Ok(if stdout.is_empty() { stderr } else { stdout })
+    Ok(if stdout_log.is_empty() {
+        stderr_log
+    } else {
+        stdout_log
+    })
 }
 
 pub fn play_rom(rom_path: &str, bios_path: &str) -> Result<(), String> {

@@ -27,9 +27,16 @@ ctest --test-dir build --output-on-failure
 
 1. Confirm BIOS status is OK
 2. Select Emerald (or R/S) from the `roms/` list — do not expect silent autoplay
-3. Press **B** Build once if AOT is missing (progress in status line)
-4. Press **Enter** Play when unlocked
-5. Expect log: `activated cart artifact via dlopen` and `coverage=runtime-loaded-artifact` (or linked-* for dev builds)
+3. Press **B** Build once if AOT is missing (progress in status line; can take several minutes)
+4. Press **Enter** Play when unlocked — this must **not** re-run cart Build
+5. Expect log: `activated cart artifact via dlopen` (`activate_ms=…`) and
+   `self_heal_recompile=ENABLED … eager_warm=0 warm_ms=…`
+6. With a populated heal cache, repeated Play should reach early boot in seconds.
+   An empty heal cache may hitch on the first session while overlays are compiled;
+   later Plays reuse those shards on demand (no full-cache warm at startup).
+
+Diagnostic: `GBARECOMP_HEAL_EAGER_WARM=1` restores the old “load every overlay DLL
+before the guest runs” behavior (slow; for measurement only).
 
 ## CLI path
 
@@ -66,8 +73,9 @@ Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml`
 |------|----------|
 | Cartridge save | `~/.local/share/gen3recomp/saves/<sha1>.sav` |
 | Cart AOT `.so` | `~/.local/share/gen3recomp/cart_aot/<sha1>/abi3-linux-x64/libcart.so` |
-| IWRAM / heal DLLs | `~/.local/share/gen3recomp/recomp_cache/<sha1>/` |
+| IWRAM / heal DLLs | `~/.local/share/gen3recomp/recomp_cache/<sha1>/` (loaded on demand by default; not all shards at Play start) |
 | Mod enablement | `~/.local/share/gen3recomp/mods_enabled.txt` |
+| Eager heal warm (diag) | `GBARECOMP_HEAL_EAGER_WARM=1` — optional; slows every Play |
 
 ## Controls
 

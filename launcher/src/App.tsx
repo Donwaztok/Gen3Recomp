@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Button, Chip, Modal, Spinner, Switch } from "@heroui/react";
+import { Button, Chip, Label, Modal, ProgressBar, Spinner, Switch } from "@heroui/react";
 
 type RomEntry = {
   path: string;
@@ -38,10 +39,42 @@ type LibraryState = {
   message: string;
 };
 
+type BuildProgress = {
+  sha1: string;
+  phase: string;
+  current: number;
+  total: number;
+  percent: number;
+  message: string;
+};
+
+function IconPlay() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="g3-cover-icon">
+      <path fill="currentColor" d="M8 5.5v13l11-6.5L8 5.5z" />
+    </svg>
+  );
+}
+
+function IconBuild() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="g3-cover-icon">
+      <path
+        fill="currentColor"
+        d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+      />
+    </svg>
+  );
+}
+
 function App() {
   const [library, setLibrary] = useState<LibraryState | null>(null);
   const [selectedSha1, setSelectedSha1] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [buildingSha1, setBuildingSha1] = useState<string | null>(null);
+  const [buildProgress, setBuildProgress] = useState<BuildProgress | null>(
+    null,
+  );
   const [status, setStatus] = useState("Loading library…");
   const [modsOpen, setModsOpen] = useState(false);
   const [errorOpen, setErrorOpen] = useState(false);
@@ -52,49 +85,74 @@ function App() {
     setErrorOpen(true);
   };
 
-  const refresh = useCallback(async (fetchCovers: boolean) => {
-    setBusy(true);
-    try {
-      const next = await invoke<LibraryState>("refresh_library", {
-        fetchCovers,
-      });
-      setLibrary(next);
-      setSelectedSha1((prev) => {
-        if (prev && next.roms.some((r) => r.sha1 === prev)) return prev;
-        return next.roms[0]?.sha1 ?? null;
-      });
-      setStatus(
-        next.roms.length === 0
-          ? "Drop catalogued dumps in roms/ or use Add ROM"
-          : `${next.roms.length} title(s) · covers cached locally (D7)`,
-      );
-      // Background cover fetch for missing tiles
-      for (const rom of next.roms) {
-        if (!rom.cover_data_url) {
-          void invoke<string | null>("fetch_cover", { gameId: rom.game_id })
-            .then((url) => {
-              if (!url) return;
-              setLibrary((cur) => {
-                if (!cur) return cur;
-                return {
-                  ...cur,
-                  roms: cur.roms.map((r) =>
-                    r.game_id === rom.game_id
-                      ? { ...r, cover_data_url: url }
-                      : r,
-                  ),
-                };
-              });
-            })
-            .catch(() => undefined);
-        }
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    void listen<BuildProgress>("build-progress", (event) => {
+      const payload = event.payload;
+      setBuildProgress(payload);
+      setBuildingSha1(payload.sha1);
+      if (payload.message) {
+        setStatus(payload.message);
       }
-    } catch (e) {
-      showError(String(e));
-    } finally {
-      setBusy(false);
-    }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
   }, []);
+
+  const refresh = useCallback(
+    async (
+      fetchCovers: boolean,
+      options?: { lockUi?: boolean; preserveStatus?: boolean },
+    ) => {
+      const lockUi = options?.lockUi !== false;
+      if (lockUi) setBusy(true);
+      try {
+        const next = await invoke<LibraryState>("refresh_library", {
+          fetchCovers,
+        });
+        setLibrary(next);
+        setSelectedSha1((prev) => {
+          if (prev && next.roms.some((r) => r.sha1 === prev)) return prev;
+          return next.roms[0]?.sha1 ?? null;
+        });
+        if (!options?.preserveStatus) {
+          setStatus(
+            next.roms.length === 0
+              ? "Drop catalogued dumps in roms/ or use Add ROM"
+              : `${next.roms.length} title(s) · covers cached locally (D7)`,
+          );
+        }
+        for (const rom of next.roms) {
+          if (!rom.cover_data_url) {
+            void invoke<string | null>("fetch_cover", { gameId: rom.game_id })
+              .then((url) => {
+                if (!url) return;
+                setLibrary((cur) => {
+                  if (!cur) return cur;
+                  return {
+                    ...cur,
+                    roms: cur.roms.map((r) =>
+                      r.game_id === rom.game_id
+                        ? { ...r, cover_data_url: url }
+                        : r,
+                    ),
+                  };
+                });
+              })
+              .catch(() => undefined);
+          }
+        }
+      } catch (e) {
+        showError(String(e));
+      } finally {
+        if (lockUi) setBusy(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     void refresh(true);
@@ -110,11 +168,19 @@ function App() {
     [library, selectedSha1],
   );
 
-  const canPlay =
-    !!selected &&
+  const buildingRom = useMemo(
+    () => library?.roms.find((r) => r.sha1 === buildingSha1) ?? null,
+    [library, buildingSha1],
+  );
+
+  const canPlayRom = (rom: RomEntry | null | undefined) =>
+    !!rom &&
     !!library?.bios.valid &&
-    selected.aot_ready &&
+    rom.aot_ready &&
     !!library.host_path;
+
+  const canPlay = canPlayRom(selected);
+  const buildInFlight = buildingSha1 !== null;
 
   const onAddRom = async () => {
     const picked = await open({
@@ -126,7 +192,7 @@ function App() {
     try {
       const entry = await invoke<RomEntry>("identify_rom", { path: picked });
       setStatus(`Added ${entry.display_name}`);
-      await refresh(false);
+      await refresh(false, { lockUi: false });
       setSelectedSha1(entry.sha1);
     } catch (e) {
       showError(String(e));
@@ -135,33 +201,61 @@ function App() {
     }
   };
 
-  const onBuild = async () => {
-    if (!selected) return;
-    setBusy(true);
-    setStatus("Building cart AOT — this can take several minutes…");
+  const onBuild = async (rom?: RomEntry | null) => {
+    const target = rom ?? selected;
+    if (!target) return;
+    if (buildingSha1) {
+      showError(
+        "A cart AOT Build is already running. Wait for it to finish before starting another.",
+      );
+      return;
+    }
+    setSelectedSha1(target.sha1);
+    setBuildingSha1(target.sha1);
+    setBuildProgress({
+      sha1: target.sha1,
+      phase: "generate",
+      current: 0,
+      total: 1,
+      percent: 0,
+      message: `Building ${target.display_name} — one-time step, can take several minutes…`,
+    });
+    setStatus(
+      `Building ${target.display_name} — one-time step, can take several minutes…`,
+    );
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
     try {
       const log = await invoke<string>("build_cart", {
-        romPath: selected.path,
+        romPath: target.path,
       });
-      setStatus(log.split("\n").filter(Boolean).slice(-1)[0] ?? "Build done");
-      await refresh(false);
+      setStatus(
+        log.split("\n").filter(Boolean).slice(-1)[0] ??
+          `${target.display_name} ready — Play should open quickly now`,
+      );
+      await refresh(false, { lockUi: false, preserveStatus: true });
     } catch (e) {
       showError(String(e));
       setStatus("Build failed");
     } finally {
-      setBusy(false);
+      setBuildingSha1(null);
+      setBuildProgress(null);
     }
   };
 
-  const onPlay = async () => {
-    if (!selected || !library?.bios.path) return;
+  const onPlay = async (rom?: RomEntry | null) => {
+    const target = rom ?? selected;
+    if (!target || !library?.bios.path) return;
+    setSelectedSha1(target.sha1);
     setBusy(true);
+    setStatus(`Starting ${target.display_name}…`);
     try {
       await invoke("play_rom", {
-        romPath: selected.path,
+        romPath: target.path,
         biosPath: library.bios.path,
       });
-      setStatus(`Started ${selected.display_name}`);
+      setStatus(`Started ${target.display_name}`);
     } catch (e) {
       showError(String(e));
     } finally {
@@ -172,11 +266,14 @@ function App() {
   const onToggleMod = async (id: string, enabled: boolean) => {
     try {
       await invoke("set_mod_enabled", { id, enabled });
-      await refresh(false);
+      await refresh(false, { lockUi: false });
     } catch (e) {
       showError(String(e));
     }
   };
+
+  const coverProgressFor = (sha1: string) =>
+    buildingSha1 === sha1 ? buildProgress : null;
 
   return (
     <div className="g3-shell">
@@ -185,8 +282,8 @@ function App() {
           Gen3<span className="g3-brand-accent">Recomp</span>
         </h1>
         <p className="g3-tagline">
-          Your catalogued Gen3 dumps. Build once, play natively — covers stay on
-          your machine.
+          Build cart AOT once (can take minutes). After that, Play should open
+          quickly — covers stay on your machine.
         </p>
       </header>
 
@@ -202,33 +299,115 @@ function App() {
         </div>
       ) : (
         <div className="g3-grid">
-          {library.roms.map((rom, i) => (
-            <button
-              type="button"
-              key={rom.sha1}
-              className={`g3-tile${selectedSha1 === rom.sha1 ? " is-selected" : ""}`}
-              style={{ animationDelay: `${0.04 * i}s` }}
-              onClick={() => setSelectedSha1(rom.sha1)}
-            >
+          {library.roms.map((rom, i) => {
+            const tileCanPlay = canPlayRom(rom);
+            const tileProgress = coverProgressFor(rom.sha1);
+            const isBuildingThis = buildingSha1 === rom.sha1;
+            return (
               <div
-                className={`g3-cover g3-cover--${rom.game_id.replace(/[^a-z0-9-]/gi, "")}`}
+                key={rom.sha1}
+                className={`g3-tile${selectedSha1 === rom.sha1 ? " is-selected" : ""}${isBuildingThis ? " is-building" : ""}`}
+                style={{ animationDelay: `${0.04 * i}s` }}
               >
-                {rom.cover_data_url ? (
-                  <img src={rom.cover_data_url} alt="" draggable={false} />
-                ) : (
-                  <span className="g3-placeholder">{rom.display_name}</span>
-                )}
+                <div
+                  className={`g3-cover g3-cover--${rom.game_id.replace(/[^a-z0-9-]/gi, "")}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedSha1 === rom.sha1}
+                  aria-label={`Select ${rom.display_name}`}
+                  onClick={() => setSelectedSha1(rom.sha1)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedSha1(rom.sha1);
+                    }
+                  }}
+                >
+                  {rom.cover_data_url ? (
+                    <img src={rom.cover_data_url} alt="" draggable={false} />
+                  ) : (
+                    <span className="g3-placeholder">{rom.display_name}</span>
+                  )}
+                  {tileProgress && (
+                    <div
+                      className="g3-cover-progress"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <ProgressBar
+                        aria-label={`Building ${rom.display_name}`}
+                        className="w-full"
+                        color="accent"
+                        size="sm"
+                        maxValue={100}
+                        value={Math.round(tileProgress.percent ?? 0)}
+                        formatOptions={{
+                          style: "decimal",
+                          maximumFractionDigits: 0,
+                        }}
+                        isIndeterminate={
+                          tileProgress.phase === "generate" &&
+                          tileProgress.current === 0
+                        }
+                      >
+                        <Label className="g3-cover-progress-label">
+                          {tileProgress.message || "Building…"}
+                        </Label>
+                        <ProgressBar.Track>
+                          <ProgressBar.Fill />
+                        </ProgressBar.Track>
+                      </ProgressBar>
+                    </div>
+                  )}
+                  {!isBuildingThis && (
+                    <div className="g3-cover-action">
+                      {rom.aot_ready ? (
+                        <button
+                          type="button"
+                          className="g3-cover-btn"
+                          aria-label={`Play ${rom.display_name}`}
+                          title="Play"
+                          disabled={busy || !tileCanPlay}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void onPlay(rom);
+                          }}
+                        >
+                          <IconPlay />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="g3-cover-btn g3-cover-btn--build"
+                          aria-label={`Build ${rom.display_name}`}
+                          title="Build cart AOT"
+                          disabled={busy || buildInFlight}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void onBuild(rom);
+                          }}
+                        >
+                          <IconBuild />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="g3-tile-meta">
+                  <p className="g3-tile-title">{rom.display_name}</p>
+                  <p className="g3-tile-sub">
+                    {rom.region}
+                    {" · "}
+                    {isBuildingThis
+                      ? "Building…"
+                      : rom.aot_ready
+                        ? "Ready"
+                        : "Needs Build"}
+                  </p>
+                </div>
               </div>
-              <div className="g3-tile-meta">
-                <p className="g3-tile-title">{rom.display_name}</p>
-                <p className="g3-tile-sub">
-                  {rom.region}
-                  {" · "}
-                  {rom.aot_ready ? "Ready" : "Needs Build"}
-                </p>
-              </div>
-            </button>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -244,10 +423,15 @@ function App() {
             >
               {selected
                 ? selected.aot_ready
-                  ? "AOT ready"
-                  : "AOT missing"
+                  ? "AOT ready — Play opens quickly"
+                  : "Needs Build (minutes, once)"
                 : "No selection"}
             </Chip>
+            {buildInFlight && (
+              <Chip size="sm" variant="soft">
+                Building {buildingRom?.display_name ?? "…"}
+              </Chip>
+            )}
             {!library?.host_path && (
               <Chip size="sm" variant="soft">
                 Host missing
@@ -273,7 +457,12 @@ function App() {
           <Button
             variant="outline"
             onPress={() => void onBuild()}
-            isDisabled={busy || !selected}
+            isDisabled={
+              busy ||
+              buildInFlight ||
+              !selected ||
+              !!selected?.aot_ready
+            }
           >
             Build
           </Button>

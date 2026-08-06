@@ -17,8 +17,12 @@ fn identify_rom(path: String) -> Result<RomEntry, String> {
 }
 
 #[tauri::command]
-fn build_cart(rom_path: String) -> Result<String, String> {
-    host::build_cart(&rom_path)
+async fn build_cart(app: tauri::AppHandle, rom_path: String) -> Result<String, String> {
+    // Run off the async IPC worker so progress events can reach the WebView
+    // while the multi-minute cart build is still running.
+    tauri::async_runtime::spawn_blocking(move || host::build_cart(&app, &rom_path))
+        .await
+        .map_err(|e| format!("build task join failed: {e}"))?
 }
 
 #[tauri::command]

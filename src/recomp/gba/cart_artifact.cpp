@@ -4,6 +4,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <chrono>
 #include <filesystem>
 #include <mutex>
 #include <string>
@@ -86,8 +87,12 @@ bool try_activate_cart_artifact(const std::string& rom_sha1, std::string& error)
     }
 
     const auto path = cart_artifact_path(rom_sha1);
+    const auto t0 = std::chrono::steady_clock::now();
     dlerror();
-    void* handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+    // RTLD_LAZY: resolve undefined symbols on first use. RTLD_NOW paid a large
+    // reloc cost on every Play for ~100MiB+ cart artifacts. We still dlsym the
+    // dispatch table symbols immediately below.
+    void* handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
     if (handle == nullptr) {
         const char* detail = dlerror();
         error = std::string("failed to dlopen cart artifact: ") +
@@ -117,10 +122,14 @@ bool try_activate_cart_artifact(const std::string& rom_sha1, std::string& error)
     g_loaded_cart.handle = handle;
     g_loaded_cart.sha1 = rom_sha1;
     mark_cart_artifact_runtime_loaded(rom_sha1);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::steady_clock::now() - t0)
+                        .count();
     spdlog::info(
-        "activated cart artifact via dlopen entries={} path={}",
+        "activated cart artifact via dlopen entries={} path={} activate_ms={}",
         len,
-        path.string());
+        path.string(),
+        ms);
     return true;
 #endif
 }

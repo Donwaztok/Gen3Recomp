@@ -8,6 +8,13 @@ rom="${1:-}"
 jobs="${GEN3RECOMP_CART_JOBS:-8}"
 abi="abi3-linux-x64"
 
+# Machine-readable progress for the Tauri launcher (CLI users can ignore).
+# Format: PROGRESS current=<i> total=<n> phase=<generate|compile|link|done>
+progress() {
+  local current="$1" total="$2" phase="$3"
+  printf 'PROGRESS current=%s total=%s phase=%s\n' "$current" "$total" "$phase"
+}
+
 if [[ -z "$rom" ]]; then
   echo "usage: $0 /path/to/game.gba" >&2
   exit 1
@@ -24,6 +31,7 @@ src_dir="$artifact_dir/src"
 lib="$artifact_dir/libcart.so"
 
 echo "==> cart artifact sha1=$sha1 abi=$abi"
+progress 0 1 generate
 mkdir -p "$src_dir"
 
 # Generate sources into the artifact tree (not the repo) so CI clones stay clean.
@@ -54,12 +62,7 @@ GEN3RECOMP_ROM_CONFIG="${GEN3RECOMP_ROM_CONFIG:-}" \
     if [[ -f "$config" ]]; then cmd+=(--config "$config"); else cmd+=(--entry 0x080000C0); fi
     "${cmd[@]}"
   '
-
-gbarecomp_inc=(
-  -I"$root/third_party/gbarecomp/src/armv4t"
-  -I"$root/third_party/gbarecomp/src/runtime"
-  -I"$src_dir"
-)
+progress 1 1 generate
 
 mapfile -t shards < <(ls "$src_dir"/recompiled_*.cpp 2>/dev/null | sort)
 if [[ ${#shards[@]} -lt 1 ]] || [[ ! -f "$src_dir/dispatch_table.cpp" ]]; then
@@ -67,42 +70,32 @@ if [[ ${#shards[@]} -lt 1 ]] || [[ ! -f "$src_dir/dispatch_table.cpp" ]]; then
   exit 1
 fi
 
+compile_srcs=("${shards[@]}" "$src_dir/dispatch_table.cpp")
+if [[ -f "$src_dir/symbol_map.cpp" ]]; then
+  compile_srcs+=("$src_dir/symbol_map.cpp")
+fi
+compile_total="${#compile_srcs[@]}"
+
 echo "==> compiling ${#shards[@]} shards + dispatch into $lib (jobs=$jobs)"
+progress 0 "$compile_total" compile
 obj_dir="$artifact_dir/obj"
 mkdir -p "$obj_dir"
-objs=()
-
-compile_one() {
-  local src="$1"
-  local base
-  base="$(basename "$src" .cpp)"
-  local obj="$obj_dir/${base}.o"
-  if [[ -f "$obj" && "$obj" -nt "$src" ]]; then
-    echo "  cached $base"
-    return 0
-  fi
-  echo "  cc $base"
-  c++ -std=c++20 -O2 -fPIC -shared -w \
-    -fno-var-tracking -fno-var-tracking-assignments \
-    "${gbarecomp_inc[@]}" \
-    -c "$src" -o "$obj"
-}
-
-export -f compile_one
-export obj_dir
-export -p | grep -E '^gbarecomp_inc' >/dev/null 2>&1 || true
 
 # Parallel compile without relying on GNU parallel.
 pids=()
 running=0
-for src in "${shards[@]}" "$src_dir/dispatch_table.cpp"; do
-  if [[ -f "$src_dir/symbol_map.cpp" && "$src" == "$src_dir/dispatch_table.cpp" ]]; then
-    :
-  fi
+completed=0
+bump_compile() {
+  completed=$((completed + 1))
+  progress "$completed" "$compile_total" compile
+}
+
+for src in "${compile_srcs[@]}"; do
   (
     base="$(basename "$src" .cpp)"
     obj="$obj_dir/${base}.o"
     if [[ -f "$obj" && "$obj" -nt "$src" ]]; then
+      echo "  cached $base"
       exit 0
     fi
     echo "  cc $base"
@@ -119,32 +112,22 @@ for src in "${shards[@]}" "$src_dir/dispatch_table.cpp"; do
     wait "${pids[0]}"
     pids=("${pids[@]:1}")
     running=$((running - 1))
+    bump_compile
   fi
 done
-if [[ -f "$src_dir/symbol_map.cpp" ]]; then
-  (
-    obj="$obj_dir/symbol_map.o"
-    if [[ ! -f "$obj" || "$src_dir/symbol_map.cpp" -nt "$obj" ]]; then
-      echo "  cc symbol_map"
-      c++ -std=c++20 -O2 -fPIC -w \
-        -fno-var-tracking -fno-var-tracking-assignments \
-        -I"$root/third_party/gbarecomp/src/armv4t" \
-        -I"$root/third_party/gbarecomp/src/runtime" \
-        -I"$src_dir" \
-        -c "$src_dir/symbol_map.cpp" -o "$obj"
-    fi
-  ) &
-  pids+=($!)
-fi
 for pid in "${pids[@]+"${pids[@]}"}"; do
   wait "$pid"
+  bump_compile
 done
 
 mapfile -t objs < <(ls "$obj_dir"/*.o | sort)
 echo "==> linking ${#objs[@]} objects -> $lib"
+progress 0 1 link
 c++ -std=c++20 -O2 -shared -o "$lib" "${objs[@]}"
+progress 1 1 link
 echo "$sha1" >"$artifact_dir/rom.sha1"
 echo "Cart artifact ready: $lib"
+progress 1 1 done
 echo "Play from the launcher (stock host dlopens this .so — no CMake relink):"
 echo "  ./build/gen3recomp"
 echo "Or CLI:"

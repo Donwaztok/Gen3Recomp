@@ -104,7 +104,6 @@ body {
   border: none;
   background: transparent;
   padding: 0;
-  cursor: pointer;
   text-align: left;
   color: inherit;
   animation: rise-in 0.55s ease both;
@@ -115,12 +114,6 @@ body {
   transform: translateY(-5px);
 }
 
-.g3-tile:focus-visible {
-  outline: 2px solid var(--g3-moss-bright);
-  outline-offset: 5px;
-  border-radius: 0.75rem;
-}
-
 .g3-tile.is-selected .g3-cover {
   box-shadow:
     0 0 0 2px var(--g3-moss-bright),
@@ -129,6 +122,7 @@ body {
 }
 
 .g3-cover {
+  position: relative;
   aspect-ratio: 3 / 4;
   width: 100%;
   border-radius: 0.9rem;
@@ -136,6 +130,7 @@ body {
   background: linear-gradient(160deg, #101613, #1a3d2a 55%, #2a5a40);
   display: grid;
   place-items: center;
+  cursor: pointer;
   transition:
     box-shadow 0.22s ease,
     transform 0.22s ease;
@@ -143,11 +138,120 @@ body {
   border: 1px solid var(--g3-line);
 }
 
+.g3-cover:focus-visible {
+  outline: 2px solid var(--g3-moss-bright);
+  outline-offset: 3px;
+}
+
 .g3-cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: center center;
+  display: block;
+}
+
+.g3-cover-action {
+  position: absolute;
+  inset: auto 0.65rem 0.65rem auto;
+  display: grid;
+  place-items: center;
+  background: none;
+  opacity: 0.95;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.g3-cover-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  padding: 0.55rem 0.6rem 0.65rem;
+  background: linear-gradient(
+    to top,
+    rgba(8, 12, 10, 0.92) 0%,
+    rgba(8, 12, 10, 0.75) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.g3-cover-progress-label {
+  display: block;
+  font-size: 0.65rem;
+  line-height: 1.25;
+  color: var(--g3-mist);
+  margin-bottom: 0.35rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.g3-tile.is-building .g3-cover {
+  box-shadow:
+    0 0 0 1px rgba(239, 182, 90, 0.45),
+    0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+
+.g3-tile:hover .g3-cover-action,
+.g3-tile.is-selected .g3-cover-action,
+.g3-cover:focus-within .g3-cover-action {
+  opacity: 1;
+}
+
+.g3-cover-btn {
+  pointer-events: auto;
+  width: 3.1rem;
+  height: 3.1rem;
+  min-width: 44px;
+  min-height: 44px;
+  border: none;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #0c120f;
+  background: var(--g3-moss-bright);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    opacity 0.18s ease;
+}
+
+.g3-cover-btn:hover:not(:disabled) {
+  transform: scale(1.06);
+  background: #7ee0a4;
+}
+
+.g3-cover-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.g3-cover-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.g3-cover-btn--build {
+  color: #1a1408;
+  background: var(--g3-amber);
+}
+
+.g3-cover-btn--build:hover:not(:disabled) {
+  background: #efb65a;
+}
+
+.g3-cover-icon {
+  width: 1.35rem;
+  height: 1.35rem;
   display: block;
 }
 
