@@ -70,7 +70,11 @@ jobs:
 
       - name: Install macOS packaging deps
         if: runner.os == 'macOS'
-        run: brew install cmake ninja sdl2
+        run: |
+          # GitHub macOS images may ship aws/tap without trust, which prints a
+          # noisy brew warning on every formula install. We do not use that tap.
+          brew untap aws/tap 2>/dev/null || true
+          brew install cmake ninja sdl2
 
       - name: Setup Node
         uses: actions/setup-node@v5
