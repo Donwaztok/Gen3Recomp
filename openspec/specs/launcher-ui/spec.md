@@ -188,3 +188,49 @@ The launcher UI MUST prevent starting a second cart AOT Build while one is alrea
 - **WHEN** the user tries to start Build for title B
 - **THEN** a second Build does not start
 - **THEN** the UI indicates a Build is already in progress
+
+### Requirement: Play startup wait is distinct from Build
+The launcher MUST present Build as the one-time cart AOT step and MUST NOT imply that every subsequent Play will take several minutes after AOT is ready. When AOT is ready and caches are warm, the UI MUST treat Play as the fast path to the host session (subject to normal process start), not a second long compile gate.
+
+#### Scenario: Ready title offers Play without multi-minute warning
+- **GIVEN** a selected catalogued dump with cart AOT ready
+- **WHEN** the library footer/status is shown
+- **THEN** messaging does not describe Play as another multi-minute recompile
+- **THEN** any remaining first-session warm note (empty heal cache) is clearly separate from Build progress text
+
+### Requirement: Build shows a live progress bar
+While a cart AOT Build is running, the launcher UI MUST display a progress bar and a short phase or status label that updates before the build command finishes. The indicator MUST appear for Build started from either the cover action or the footer. When compile unit counts are known, the bar SHOULD be determinate (0–100% or n/N); when only a phase is known, an indeterminate or busy bar with phase text is acceptable.
+
+#### Scenario: Build in progress updates the bar
+- **GIVEN** a catalogued dump without a ready cart artifact
+- **WHEN** the user starts Build
+- **THEN** a progress bar is visible while the build runs
+- **THEN** the status/phase text changes at least once before completion (for example generating → compiling → linking)
+
+#### Scenario: Build completion clears the in-progress bar
+- **GIVEN** a Build that finishes successfully
+- **WHEN** the artifact becomes ready
+- **THEN** the in-progress progress bar is no longer shown as an active build
+- **THEN** the UI reflects AOT ready (Play available per existing gates)
+
+### Requirement: Cover overlays expose Play or Build icons
+Each catalogued cover tile MUST show an icon-only primary action overlaid on the cover art (or placeholder): **Play** when that dump’s cart AOT is ready (and existing BIOS/host gates allow Play), or **Build** when cart AOT is missing. The control MUST NOT rely on visible text on the button face; it MUST still expose an accessible name (for example `aria-label`).
+
+#### Scenario: AOT-ready tile shows Play icon
+- **GIVEN** a catalogued dump with ready cart AOT, valid BIOS, and host available
+- **WHEN** the library grid renders that tile
+- **THEN** an icon-only Play control is visible on that cover
+- **WHEN** the user activates that Play icon
+- **THEN** the native host starts for that dump (same gates as footer Play)
+
+#### Scenario: Missing AOT tile shows Build icon
+- **GIVEN** a catalogued dump without a ready cart artifact
+- **WHEN** the library grid renders that tile
+- **THEN** an icon-only Build control is visible on that cover
+- **WHEN** the user activates that Build icon
+- **THEN** the cart AOT build runs for that dump
+
+#### Scenario: Tile click still selects
+- **GIVEN** multiple catalogued dumps in the grid
+- **WHEN** the user clicks the cover area outside the action icon
+- **THEN** that dump becomes the selected tile without starting Play or Build
