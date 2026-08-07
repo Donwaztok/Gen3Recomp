@@ -118,10 +118,19 @@ bool load(std::string& error) {
     }
 #else
     dlerror();
+#if defined(__linux__)
+    // Prefer DEEPBIND on Linux so SDL3 symbols do not collide with SDL2
+    // already mapped by gba-recomp. macOS has no RTLD_DEEPBIND.
     g_lib = dlopen("libSDL3.so.0", RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
     if (g_lib == nullptr) {
-        g_lib = dlopen("libSDL3.dylib", RTLD_NOW | RTLD_LOCAL);
+        g_lib = dlopen("libSDL3.so.0", RTLD_NOW | RTLD_LOCAL);
     }
+#else
+    g_lib = dlopen("libSDL3.dylib", RTLD_NOW | RTLD_LOCAL);
+    if (g_lib == nullptr) {
+        g_lib = dlopen("libSDL3.so.0", RTLD_NOW | RTLD_LOCAL);
+    }
+#endif
     if (g_lib == nullptr) {
         const char* detail = dlerror();
         error = std::string("failed to dlopen libSDL3");

@@ -54,6 +54,41 @@ if(NOT EXISTS "${GBARECOMP_DIR}/CMakeLists.txt")
         "Run: git submodule update --init --recursive")
 endif()
 
+# Host-required API not yet in the pinned upstream commit (cart dlopen dispatch
+# override + MSVC clz + optional heal warm). Applied idempotently so CI clean
+# checkouts and local dirty trees both work.
+set(_GEN3_GBARECOMP_PATCH
+    "${CMAKE_SOURCE_DIR}/third_party/patches/gbarecomp-gen3-host.patch")
+if(EXISTS "${_GEN3_GBARECOMP_PATCH}")
+    find_package(Git QUIET)
+    if(Git_FOUND)
+        execute_process(
+            COMMAND "${GIT_EXECUTABLE}" -C "${GBARECOMP_DIR}" apply --reverse --check
+                    "${_GEN3_GBARECOMP_PATCH}"
+            RESULT_VARIABLE _gen3_patch_already
+            OUTPUT_QUIET
+            ERROR_QUIET)
+        if(NOT _gen3_patch_already EQUAL 0)
+            execute_process(
+                COMMAND "${GIT_EXECUTABLE}" -C "${GBARECOMP_DIR}" apply
+                        "${_GEN3_GBARECOMP_PATCH}"
+                RESULT_VARIABLE _gen3_patch_apply
+                OUTPUT_VARIABLE _gen3_patch_out
+                ERROR_VARIABLE _gen3_patch_err)
+            if(NOT _gen3_patch_apply EQUAL 0)
+                message(FATAL_ERROR
+                    "Failed to apply ${_GEN3_GBARECOMP_PATCH} to gba-recomp submodule.\n"
+                    "${_gen3_patch_out}${_gen3_patch_err}")
+            endif()
+            message(STATUS "gen3recomp: applied gbarecomp-gen3-host.patch")
+        else()
+            message(STATUS "gen3recomp: gbarecomp-gen3-host.patch already applied")
+        endif()
+    else()
+        message(WARNING "gen3recomp: git not found; cannot apply gbarecomp-gen3-host.patch")
+    endif()
+endif()
+
 set(GBARECOMP_ENABLE_MODS OFF CACHE BOOL "" FORCE)
 set(GBARECOMP_BUILD_ORACLE OFF CACHE BOOL "" FORCE)
 add_subdirectory("${GBARECOMP_DIR}" "${CMAKE_BINARY_DIR}/_gbarecomp" EXCLUDE_FROM_ALL)

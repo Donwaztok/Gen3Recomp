@@ -67,8 +67,8 @@ if(TARGET gbarecomp_runtime)
     target_link_libraries(gen3recomp_recomp PRIVATE gbarecomp_runtime)
     target_compile_definitions(gen3recomp_recomp PRIVATE GEN3RECOMP_HAS_GBARECOMP=1)
     target_include_directories(gen3recomp_recomp PRIVATE
-        "${gbarecomp_SOURCE_DIR}/src/armv4t"
-        "${gbarecomp_SOURCE_DIR}/src/runtime"
+        "${CMAKE_SOURCE_DIR}/third_party/gbarecomp/src/armv4t"
+        "${CMAKE_SOURCE_DIR}/third_party/gbarecomp/src/runtime"
         "${GEN3_ROM_GEN}")
 endif()
 if(GEN3_CART_VIA_ARTIFACT)
