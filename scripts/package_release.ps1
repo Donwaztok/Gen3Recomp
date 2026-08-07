@@ -89,6 +89,22 @@ if ($recompileBin) {
     Copy-Item $recompileBin (Join-Path $stage "bin/gba_recompile.exe")
 }
 
+# Bundle SDL2/SDL3 DLLs from setup-sdl / CMAKE_PREFIX_PATH when present.
+$sdlRoots = @(
+    $env:SDL2_ROOT,
+    $env:SDL3_ROOT,
+    $env:CMAKE_PREFIX_PATH
+) | Where-Object { $_ -and $_.Trim() -ne "" }
+foreach ($rootPath in $sdlRoots) {
+    foreach ($dllName in @("SDL2.dll", "SDL3.dll")) {
+        $found = Get-ChildItem -Recurse -Path $rootPath -Filter $dllName -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($found) {
+            Copy-Item $found.FullName (Join-Path $stage "bin/$dllName") -Force
+        }
+    }
+}
+
 foreach ($script in @("build_cart_artifact.sh", "verify_release_layout.sh", "run_launcher.sh")) {
     $src = Join-Path $root "scripts/$script"
     if (Test-Path $src) {

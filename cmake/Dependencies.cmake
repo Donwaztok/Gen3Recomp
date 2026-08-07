@@ -91,11 +91,88 @@ endif()
 
 set(GBARECOMP_ENABLE_MODS OFF CACHE BOOL "" FORCE)
 set(GBARECOMP_BUILD_ORACLE OFF CACHE BOOL "" FORCE)
+
+# gba-recomp HostWindow needs SDL2 (real SDL2 or sdl2-compat). Without it the
+# runtime stubs the window and silently runs one headless frame then exits —
+# which is what broke GitHub Release player packages. Resolve into cache before
+# add_subdirectory so gbarecomp's find_path/find_library reuse these values.
+if(NOT SDL2_INCLUDE_DIR OR NOT SDL2_LIBRARY)
+    find_package(SDL2 QUIET CONFIG)
+    if(TARGET SDL2::SDL2)
+        get_target_property(_gen3_sdl2_inc SDL2::SDL2 INTERFACE_INCLUDE_DIRECTORIES)
+        if(_gen3_sdl2_inc)
+            # Prefer .../include/SDL2 when the target exposes the parent include/.
+            foreach(_inc IN LISTS _gen3_sdl2_inc)
+                if(EXISTS "${_inc}/SDL.h")
+                    set(SDL2_INCLUDE_DIR "${_inc}" CACHE PATH "SDL2 headers" FORCE)
+                    break()
+                elseif(EXISTS "${_inc}/SDL2/SDL.h")
+                    set(SDL2_INCLUDE_DIR "${_inc}/SDL2" CACHE PATH "SDL2 headers" FORCE)
+                    break()
+                endif()
+            endforeach()
+        endif()
+        get_target_property(_gen3_sdl2_loc SDL2::SDL2 IMPORTED_LOCATION)
+        if(NOT _gen3_sdl2_loc)
+            get_target_property(_gen3_sdl2_loc SDL2::SDL2 IMPORTED_LOCATION_RELEASE)
+        endif()
+        if(_gen3_sdl2_loc)
+            set(SDL2_LIBRARY "${_gen3_sdl2_loc}" CACHE FILEPATH "SDL2 library" FORCE)
+        endif()
+    endif()
+endif()
+if(NOT SDL2_INCLUDE_DIR)
+    find_path(SDL2_INCLUDE_DIR NAMES SDL.h PATH_SUFFIXES SDL2
+        HINTS
+            ENV SDL2_ROOT
+            ENV CMAKE_PREFIX_PATH
+            ${CMAKE_PREFIX_PATH}
+            ${SDL3_ROOT}
+        PATHS
+            /usr/include
+            /usr/local/include
+            /opt/homebrew/include
+    )
+endif()
+if(NOT SDL2_LIBRARY)
+    find_library(SDL2_LIBRARY NAMES SDL2 SDL2-2.0
+        HINTS
+            ENV SDL2_ROOT
+            ENV CMAKE_PREFIX_PATH
+            ${CMAKE_PREFIX_PATH}
+            ${SDL3_ROOT}
+        PATH_SUFFIXES lib lib64
+    )
+endif()
+if(NOT SDL2_INCLUDE_DIR OR NOT SDL2_LIBRARY)
+    message(FATAL_ERROR
+        "SDL2 (or sdl2-compat) is required for the player window.\n"
+        "  SDL2_INCLUDE_DIR=${SDL2_INCLUDE_DIR}\n"
+        "  SDL2_LIBRARY=${SDL2_LIBRARY}\n"
+        "Install SDL2 / sdl2-compat and pass -DCMAKE_PREFIX_PATH=... (CI: setup-sdl).\n"
+        "Without SDL2, gba-recomp stubs HostWindow and exits after one headless frame.")
+endif()
+message(STATUS "gen3recomp: SDL2 for gba-recomp HostWindow — inc=${SDL2_INCLUDE_DIR} lib=${SDL2_LIBRARY}")
+
 add_subdirectory("${GBARECOMP_DIR}" "${CMAKE_BINARY_DIR}/_gbarecomp" EXCLUDE_FROM_ALL)
 # Host packaging/CI builds gba_recompile explicitly; clear EXCLUDE_FROM_ALL so the
 # Visual Studio generator emits a reachable .vcxproj for --target gba_recompile.
 if(TARGET gba_recompile)
     set_target_properties(gba_recompile PROPERTIES EXCLUDE_FROM_ALL FALSE)
+endif()
+get_target_property(_gen3_gba_defs gbarecomp_runtime INTERFACE_COMPILE_DEFINITIONS)
+set(_gen3_have_sdl2 FALSE)
+if(_gen3_gba_defs)
+    foreach(_def IN LISTS _gen3_gba_defs)
+        if(_def STREQUAL "GBARECOMP_HAVE_SDL2")
+            set(_gen3_have_sdl2 TRUE)
+        endif()
+    endforeach()
+endif()
+if(NOT _gen3_have_sdl2)
+    message(FATAL_ERROR
+        "gbarecomp_runtime built without GBARECOMP_HAVE_SDL2 — HostWindow is stubbed.\n"
+        "Fix SDL2 discovery (see gen3recomp SDL2 status above) and reconfigure.")
 endif()
 get_directory_property(_gbarecomp_tests DIRECTORY "${GBARECOMP_DIR}" TESTS)
 foreach(_gbarecomp_test IN LISTS _gbarecomp_tests)

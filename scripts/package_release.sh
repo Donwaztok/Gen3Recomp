@@ -86,6 +86,41 @@ if [[ -n "$gba_recompile_src" ]]; then
   install -m 755 "$gba_recompile_src" "$stage/bin/$(basename "$gba_recompile_src")"
 fi
 
+# Bundle SDL2 (+ SDL3 when using sdl2-compat) next to the host so player zips
+# run without system SDL packages. RPATH $ORIGIN keeps dlopen local.
+bundle_host_libs() {
+  local bin="$stage/bin/$host_name"
+  [[ -x "$bin" ]] || return 0
+  if command -v ldd >/dev/null 2>&1; then
+    local lib
+    while IFS= read -r lib; do
+      [[ -z "$lib" || ! -f "$lib" ]] && continue
+      case "$(basename "$lib")" in
+        libSDL2*.so*|libSDL3*.so*)
+          cp -aL "$lib" "$stage/bin/" || cp -a "$lib" "$stage/bin/"
+          ;;
+      esac
+    done < <(ldd "$bin" | awk '/=>/ {print $3}')
+    if command -v patchelf >/dev/null 2>&1; then
+      patchelf --set-rpath '$ORIGIN' "$bin" || true
+    fi
+  elif command -v otool >/dev/null 2>&1; then
+    local lib
+    while IFS= read -r lib; do
+      [[ -z "$lib" || ! -f "$lib" ]] && continue
+      case "$(basename "$lib")" in
+        libSDL2*.dylib|libSDL3*.dylib)
+          cp -a "$lib" "$stage/bin/"
+          ;;
+      esac
+    done < <(otool -L "$bin" | awk 'NR>1 {print $1}')
+    if command -v install_name_tool >/dev/null 2>&1; then
+      install_name_tool -add_rpath @loader_path "$bin" 2>/dev/null || true
+    fi
+  fi
+}
+bundle_host_libs
+
 install -m 755 scripts/run_launcher.sh "$stage/scripts/run_launcher.sh" 2>/dev/null || true
 install -m 755 scripts/build_cart_artifact.sh "$stage/scripts/build_cart_artifact.sh" 2>/dev/null || true
 install -m 755 scripts/verify_release_layout.sh "$stage/scripts/verify_release_layout.sh" 2>/dev/null || true
@@ -103,6 +138,8 @@ cat > "$stage/gen3recomp-player" <<EOF
 set -euo pipefail
 here="\$(cd "\$(dirname "\$0")" && pwd)"
 export PATH="\$here/bin:\$PATH"
+export LD_LIBRARY_PATH="\$here/bin:\${LD_LIBRARY_PATH:-}"
+export DYLD_LIBRARY_PATH="\$here/bin:\${DYLD_LIBRARY_PATH:-}"
 export GEN3RECOMP_HOST="\${GEN3RECOMP_HOST:-\$here/bin/$host_name}"
 export GEN3RECOMP_LAUNCHER="\${GEN3RECOMP_LAUNCHER:-\$here/bin/$launcher_name}"
 export GDK_BACKEND="\${GDK_BACKEND:-x11}"

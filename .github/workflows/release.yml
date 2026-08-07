@@ -65,11 +65,12 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            libssl-dev
+            libssl-dev \
+            libsdl2-dev
 
       - name: Install macOS packaging deps
         if: runner.os == 'macOS'
-        run: brew install cmake ninja
+        run: brew install cmake ninja sdl2
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -92,26 +93,41 @@ jobs:
         env:
           CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
           SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
+          SDL2_ROOT: ${{ steps.sdl.outputs.prefix }}
         run: |
           ls -la "${SDL3_ROOT}/include/SDL3" || ls -laR "${SDL3_ROOT}/include" | head -40
+          ls -la "${SDL2_ROOT}/include/SDL2" || true
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}" \
-            -DSDL3_ROOT="${SDL3_ROOT}"
+            -DSDL3_ROOT="${SDL3_ROOT}" \
+            -DSDL2_ROOT="${SDL2_ROOT}"
+          grep -E 'SDL2_LIBRARY:FILEPATH=|SDL2_INCLUDE_DIR:PATH=' build/CMakeCache.txt
           jobs="$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
           cmake --build build --target gen3recomp -j"$jobs"
           cmake --build build --target gba_recompile -j"$jobs"
+          # Player host must link SDL2 (dynamic or static).
+          if command -v ldd >/dev/null; then
+            ldd build/gen3recomp | tee /tmp/gen3-ldd.txt
+            grep -qiE 'libSDL2|SDL2' /tmp/gen3-ldd.txt
+          elif command -v otool >/dev/null; then
+            otool -L build/gen3recomp | tee /tmp/gen3-otool.txt
+            grep -qiE 'libSDL2|SDL2' /tmp/gen3-otool.txt
+          fi
 
       - name: Configure + build host (Windows)
         if: runner.os == 'Windows'
         env:
           CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
           SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
+          SDL2_ROOT: ${{ steps.sdl.outputs.prefix }}
         shell: pwsh
         run: |
           Get-ChildItem -Recurse "$env:SDL3_ROOT\include" -Filter "SDL.h" | Select-Object -First 5 FullName
           cmake -S . -B build `
             -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH" `
-            -DSDL3_ROOT="$env:SDL3_ROOT"
+            -DSDL3_ROOT="$env:SDL3_ROOT" `
+            -DSDL2_ROOT="$env:SDL2_ROOT"
+          Select-String -Path build/CMakeCache.txt -Pattern 'SDL2_LIBRARY|SDL2_INCLUDE_DIR|GBARECOMP_HAVE_SDL2'
           # VS generator: one --target per invocation (multi-target misses _gbarecomp/*.vcxproj).
           cmake --build build --config Release --target gen3recomp
           cmake --build build --config Release --target gba_recompile
