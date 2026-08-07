@@ -45,7 +45,14 @@ if (-not $SkipBuild) {
 
 function Find-FirstFile([string[]]$candidates) {
     foreach ($c in $candidates) {
-        if (Test-Path $c) { return (Resolve-Path $c).Path }
+        if ([string]::IsNullOrWhiteSpace($c)) { continue }
+        # Expand globs (e.g. bundle\msi\*.exe); skip if nothing matched.
+        $matches = @(Get-Item -Path $c -ErrorAction SilentlyContinue)
+        foreach ($m in $matches) {
+            if ($m -and (Test-Path -LiteralPath $m.FullName)) {
+                return $m.FullName
+            }
+        }
     }
     return $null
 }
@@ -59,16 +66,22 @@ $hostBin = Find-FirstFile @(
 $launcherBin = Find-FirstFile @(
     $env:GEN3RECOMP_LAUNCHER_BIN,
     "launcher/src-tauri/target/release/gen3recomp-launcher.exe",
-    "launcher/src-tauri/target/release/bundle/msi/*.exe"
+    "launcher/src-tauri/target/x86_64-pc-windows-msvc/release/gen3recomp-launcher.exe"
 )
 $recompileBin = Find-FirstFile @(
     "build/Release/gba_recompile.exe",
     "build/_gbarecomp/Release/gba_recompile.exe",
-    "build/gba_recompile.exe"
+    "build/gba_recompile.exe",
+    "build/_gbarecomp/gba_recompile.exe"
 )
 
 if (-not $hostBin) { throw "gen3recomp.exe not found; build first or set GEN3RECOMP_HOST_BIN" }
-if (-not $launcherBin) { throw "gen3recomp-launcher.exe not found after tauri build" }
+if (-not $launcherBin) {
+    Write-Host "Searched launcher candidates under launcher/src-tauri/target; listing:"
+    Get-ChildItem -Recurse "launcher/src-tauri/target" -Filter "gen3recomp-launcher.exe" -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty FullName
+    throw "gen3recomp-launcher.exe not found after tauri build (set GEN3RECOMP_LAUNCHER_BIN)"
+}
 
 Copy-Item $hostBin (Join-Path $stage "bin/gen3recomp.exe")
 Copy-Item $launcherBin (Join-Path $stage "bin/gen3recomp-launcher.exe")
