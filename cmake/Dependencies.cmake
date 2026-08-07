@@ -92,6 +92,11 @@ endif()
 set(GBARECOMP_ENABLE_MODS OFF CACHE BOOL "" FORCE)
 set(GBARECOMP_BUILD_ORACLE OFF CACHE BOOL "" FORCE)
 add_subdirectory("${GBARECOMP_DIR}" "${CMAKE_BINARY_DIR}/_gbarecomp" EXCLUDE_FROM_ALL)
+# Host packaging/CI builds gba_recompile explicitly; clear EXCLUDE_FROM_ALL so the
+# Visual Studio generator emits a reachable .vcxproj for --target gba_recompile.
+if(TARGET gba_recompile)
+    set_target_properties(gba_recompile PROPERTIES EXCLUDE_FROM_ALL FALSE)
+endif()
 get_directory_property(_gbarecomp_tests DIRECTORY "${GBARECOMP_DIR}" TESTS)
 foreach(_gbarecomp_test IN LISTS _gbarecomp_tests)
     if(TEST "${_gbarecomp_test}")

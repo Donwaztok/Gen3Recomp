@@ -21,7 +21,8 @@ gba_recompile_src=""
 if [[ "$skip_build" != "1" ]]; then
   echo "==> CMake host"
   cmake -S . -B build
-  cmake --build build --target gen3recomp gba_recompile -j"$jobs"
+  cmake --build build --target gen3recomp -j"$jobs"
+  cmake --build build --target gba_recompile -j"$jobs"
 
   echo "==> Tauri launcher (production embed — do not use bare cargo build)"
   (

@@ -29,7 +29,9 @@ New-Item -ItemType Directory -Force -Path (Join-Path $stage "roms") | Out-Null
 if (-not $SkipBuild) {
     Write-Host "==> CMake host"
     cmake -S . -B build
-    cmake --build build --config Release --target gen3recomp gba_recompile
+    # VS generator: one --target per invocation (multi-target misses _gbarecomp/*.vcxproj).
+    cmake --build build --config Release --target gen3recomp
+    cmake --build build --config Release --target gba_recompile
 
     Write-Host "==> Tauri launcher"
     Push-Location launcher
