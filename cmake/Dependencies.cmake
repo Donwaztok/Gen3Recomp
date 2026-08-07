@@ -112,10 +112,15 @@ if(NOT SDL2_INCLUDE_DIR OR NOT SDL2_LIBRARY)
                 endif()
             endforeach()
         endif()
-        get_target_property(_gen3_sdl2_loc SDL2::SDL2 IMPORTED_LOCATION)
-        if(NOT _gen3_sdl2_loc)
-            get_target_property(_gen3_sdl2_loc SDL2::SDL2 IMPORTED_LOCATION_RELEASE)
-        endif()
+        # MSVC must link the import library (.lib), not the runtime DLL.
+        set(_gen3_sdl2_loc "")
+        foreach(_prop IMPORTED_IMPLIB_RELEASE IMPORTED_IMPLIB IMPORTED_LOCATION_RELEASE IMPORTED_LOCATION)
+            get_target_property(_cand SDL2::SDL2 ${_prop})
+            if(_cand AND NOT _cand STREQUAL "_cand-NOTFOUND")
+                set(_gen3_sdl2_loc "${_cand}")
+                break()
+            endif()
+        endforeach()
         if(_gen3_sdl2_loc)
             set(SDL2_LIBRARY "${_gen3_sdl2_loc}" CACHE FILEPATH "SDL2 library" FORCE)
         endif()
@@ -127,6 +132,7 @@ if(NOT SDL2_INCLUDE_DIR)
             ENV SDL2_ROOT
             ENV CMAKE_PREFIX_PATH
             ${CMAKE_PREFIX_PATH}
+            ${SDL2_ROOT}
             ${SDL3_ROOT}
         PATHS
             /usr/include
@@ -135,14 +141,41 @@ if(NOT SDL2_INCLUDE_DIR)
     )
 endif()
 if(NOT SDL2_LIBRARY)
+    # Prefer import libs on Windows (PATH_SUFFIXES lib before bin).
     find_library(SDL2_LIBRARY NAMES SDL2 SDL2-2.0
         HINTS
             ENV SDL2_ROOT
             ENV CMAKE_PREFIX_PATH
             ${CMAKE_PREFIX_PATH}
+            ${SDL2_ROOT}
             ${SDL3_ROOT}
         PATH_SUFFIXES lib lib64
     )
+endif()
+# setup-sdl / CONFIG packages sometimes expose IMPORTED_LOCATION as the .dll;
+# MSVC then dies with LNK1107. Rewrite to the sibling import library.
+if(SDL2_LIBRARY MATCHES "\\.[Dd][Ll][Ll]$")
+    get_filename_component(_gen3_sdl2_bin "${SDL2_LIBRARY}" DIRECTORY)
+    get_filename_component(_gen3_sdl2_root "${_gen3_sdl2_bin}" DIRECTORY)
+    set(_gen3_sdl2_implib "")
+    foreach(_cand
+            "${_gen3_sdl2_root}/lib/SDL2.lib"
+            "${_gen3_sdl2_root}/lib/SDL2.dll.a"
+            "${_gen3_sdl2_bin}/SDL2.lib")
+        if(EXISTS "${_cand}")
+            set(_gen3_sdl2_implib "${_cand}")
+            break()
+        endif()
+    endforeach()
+    if(_gen3_sdl2_implib)
+        message(STATUS "gen3recomp: rewriting SDL2.dll link item -> ${_gen3_sdl2_implib}")
+        set(SDL2_LIBRARY "${_gen3_sdl2_implib}" CACHE FILEPATH "SDL2 library" FORCE)
+    else()
+        message(FATAL_ERROR
+            "SDL2 resolved to a DLL unsuitable for MSVC linking:\n"
+            "  ${SDL2_LIBRARY}\n"
+            "Expected an import library (SDL2.lib) under lib/ next to that prefix.")
+    endif()
 endif()
 if(NOT SDL2_INCLUDE_DIR OR NOT SDL2_LIBRARY)
     message(FATAL_ERROR

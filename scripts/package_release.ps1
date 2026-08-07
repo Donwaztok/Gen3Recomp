@@ -63,6 +63,11 @@ $hostBin = Find-FirstFile @(
     "build/gen3recomp.exe",
     "build/Debug/gen3recomp.exe"
 )
+if (-not $hostBin) {
+    $found = Get-ChildItem -Recurse "build" -Filter "gen3recomp.exe" -ErrorAction SilentlyContinue |
+        Select-Object -First 1 -ExpandProperty FullName
+    if ($found) { $hostBin = $found }
+}
 $launcherBin = Find-FirstFile @(
     $env:GEN3RECOMP_LAUNCHER_BIN,
     "launcher/src-tauri/target/release/gen3recomp-launcher.exe",
@@ -75,7 +80,12 @@ $recompileBin = Find-FirstFile @(
     "build/_gbarecomp/gba_recompile.exe"
 )
 
-if (-not $hostBin) { throw "gen3recomp.exe not found; build first or set GEN3RECOMP_HOST_BIN" }
+if (-not $hostBin) {
+    Write-Host "Searched for gen3recomp.exe under build/; listing:"
+    Get-ChildItem -Recurse "build" -Filter "gen3recomp.exe" -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty FullName
+    throw "gen3recomp.exe not found; build first or set GEN3RECOMP_HOST_BIN"
+}
 if (-not $launcherBin) {
     Write-Host "Searched launcher candidates under launcher/src-tauri/target; listing:"
     Get-ChildItem -Recurse "launcher/src-tauri/target" -Filter "gen3recomp-launcher.exe" -ErrorAction SilentlyContinue |
@@ -95,12 +105,21 @@ $sdlRoots = @(
     $env:SDL3_ROOT,
     $env:CMAKE_PREFIX_PATH
 ) | Where-Object { $_ -and $_.Trim() -ne "" }
-foreach ($rootPath in $sdlRoots) {
+# setup-sdl may install SDL3 and sdl2-compat under different C:/setupsdl/<hash>/ trees.
+if (Test-Path "C:/setupsdl") {
+    $sdlRoots += @(Get-ChildItem "C:/setupsdl" -Directory -ErrorAction SilentlyContinue |
+        ForEach-Object { Join-Path $_.FullName "package" })
+}
+foreach ($rootPath in ($sdlRoots | Select-Object -Unique)) {
+    if (-not (Test-Path $rootPath)) { continue }
     foreach ($dllName in @("SDL2.dll", "SDL3.dll")) {
+        $dest = Join-Path $stage "bin/$dllName"
+        if (Test-Path $dest) { continue }
         $found = Get-ChildItem -Recurse -Path $rootPath -Filter $dllName -ErrorAction SilentlyContinue |
             Select-Object -First 1
         if ($found) {
-            Copy-Item $found.FullName (Join-Path $stage "bin/$dllName") -Force
+            Copy-Item $found.FullName $dest -Force
+            Write-Host "Bundled $dllName from $($found.FullName)"
         }
     }
 }

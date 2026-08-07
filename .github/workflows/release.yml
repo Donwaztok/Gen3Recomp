@@ -91,16 +91,17 @@ jobs:
       - name: Configure + build host (Unix)
         if: runner.os != 'Windows'
         env:
+          # setup-sdl add-to-environment already exports SDL2_ROOT for sdl2-compat;
+          # keep it. Prefix is the SDL3 install (may differ from SDL2_compat).
           CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
           SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
-          SDL2_ROOT: ${{ steps.sdl.outputs.prefix }}
         run: |
           ls -la "${SDL3_ROOT}/include/SDL3" || ls -laR "${SDL3_ROOT}/include" | head -40
           ls -la "${SDL2_ROOT}/include/SDL2" || true
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}" \
+            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH};${SDL2_ROOT:-}" \
             -DSDL3_ROOT="${SDL3_ROOT}" \
-            -DSDL2_ROOT="${SDL2_ROOT}"
+            -DSDL2_ROOT="${SDL2_ROOT:-}"
           grep -E 'SDL2_LIBRARY:FILEPATH=|SDL2_INCLUDE_DIR:PATH=' build/CMakeCache.txt
           jobs="$(nproc 2>/dev/null || sysctl -n hw.ncpu)"
           cmake --build build --target gen3recomp -j"$jobs"
@@ -119,18 +120,26 @@ jobs:
         env:
           CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
           SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
-          SDL2_ROOT: ${{ steps.sdl.outputs.prefix }}
         shell: pwsh
         run: |
           Get-ChildItem -Recurse "$env:SDL3_ROOT\include" -Filter "SDL.h" | Select-Object -First 5 FullName
+          Write-Host "SDL2_ROOT=$env:SDL2_ROOT"
+          $prefix = @($env:CMAKE_PREFIX_PATH, $env:SDL2_ROOT) -join ';'
           cmake -S . -B build `
-            -DCMAKE_PREFIX_PATH="$env:CMAKE_PREFIX_PATH" `
+            -DCMAKE_PREFIX_PATH="$prefix" `
             -DSDL3_ROOT="$env:SDL3_ROOT" `
             -DSDL2_ROOT="$env:SDL2_ROOT"
-          Select-String -Path build/CMakeCache.txt -Pattern 'SDL2_LIBRARY|SDL2_INCLUDE_DIR|GBARECOMP_HAVE_SDL2'
+          if ($LASTEXITCODE -ne 0) { throw "cmake configure failed" }
+          Select-String -Path build/CMakeCache.txt -Pattern 'SDL2_LIBRARY|SDL2_INCLUDE_DIR'
           # VS generator: one --target per invocation (multi-target misses _gbarecomp/*.vcxproj).
           cmake --build build --config Release --target gen3recomp
+          if ($LASTEXITCODE -ne 0) { throw "cmake --build gen3recomp failed" }
           cmake --build build --config Release --target gba_recompile
+          if ($LASTEXITCODE -ne 0) { throw "cmake --build gba_recompile failed" }
+          if (-not (Test-Path "build/Release/gen3recomp.exe")) {
+            Get-ChildItem -Recurse build -Filter gen3recomp.exe | Select-Object FullName
+            throw "build/Release/gen3recomp.exe missing after build"
+          }
 
       - name: Build Tauri launcher
         working-directory: launcher
@@ -153,6 +162,8 @@ jobs:
         shell: pwsh
         env:
           GEN3RECOMP_VERSION: ${{ env.GEN3RECOMP_VERSION }}
+          CMAKE_PREFIX_PATH: ${{ steps.sdl.outputs.prefix }}
+          SDL3_ROOT: ${{ steps.sdl.outputs.prefix }}
         run: |
           ./scripts/package_release.ps1 -SkipBuild -Version $env:GEN3RECOMP_VERSION
 
