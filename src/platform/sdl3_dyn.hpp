@@ -7,6 +7,12 @@
 
 #include <string>
 
+// Win32 may #define CreateWindow; strip it so the SDL3 function pointer keeps
+// a stable C++ name across TUs (declaration vs LoadLibrary definition).
+#ifdef CreateWindow
+#undef CreateWindow
+#endif
+
 namespace gen3recomp::sdl3 {
 
 bool load(std::string& error);

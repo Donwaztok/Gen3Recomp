@@ -7,6 +7,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+// Winuser.h maps CreateWindow -> CreateWindowW/A; keep our SDL3 fp name intact.
+#ifdef CreateWindow
+#undef CreateWindow
+#endif
 #else
 #include <dlfcn.h>
 #endif
