@@ -20,6 +20,10 @@ add_subdirectory(src/app)
 
 add_executable(gen3recomp src/main.cpp)
 target_link_libraries(gen3recomp PRIVATE gen3recomp_app)
+# libcart.so (user-data cart AOT) binds host ABI symbols such as g_cpu / bus_* /
+# runtime_* against the main executable. Data relocs cannot be lazy; without
+# ENABLE_EXPORTS those symbols stay out of the dynamic table and dlopen fails.
+set_target_properties(gen3recomp PROPERTIES ENABLE_EXPORTS ON)
 if(TARGET gbarecomp_runtime)
     set(_gen3_gba_libs
         gen3recomp_recomp
