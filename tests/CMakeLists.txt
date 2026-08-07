@@ -1,16 +1,27 @@
 add_executable(gen3recomp_tests smoke.cpp launcher.cpp launcher_aot.cpp sha1.cpp identification.cpp video.cpp platform.cpp session.cpp recomp_provider.cpp input.cpp audio.cpp saves.cpp)
 target_link_libraries(gen3recomp_tests PRIVATE gen3recomp_app Catch2::Catch2WithMain)
 if(TARGET gbarecomp_runtime)
-    target_link_libraries(gen3recomp_tests PRIVATE
-        "-Wl,--start-group"
+    set(_gen3_gba_test_libs
         gen3recomp_recomp
         gbarecomp_runtime
         gbarecomp_armv4t
         gbarecomp_gba
-        gbarecomp_debug
-        "-Wl,--end-group"
-        ${CMAKE_DL_LIBS}
-        pthread)
+        gbarecomp_debug)
+    if(APPLE)
+        target_link_libraries(gen3recomp_tests PRIVATE
+            ${_gen3_gba_test_libs}
+            ${_gen3_gba_test_libs}
+            ${CMAKE_DL_LIBS})
+    elseif(MSVC)
+        target_link_libraries(gen3recomp_tests PRIVATE ${_gen3_gba_test_libs})
+    else()
+        target_link_libraries(gen3recomp_tests PRIVATE
+            "-Wl,--start-group"
+            ${_gen3_gba_test_libs}
+            "-Wl,--end-group"
+            ${CMAKE_DL_LIBS}
+            pthread)
+    endif()
 endif()
 if(TARGET gen3recomp_cart_artifact)
     get_target_property(_gen3_cart_loc gen3recomp_cart_artifact IMPORTED_LOCATION)

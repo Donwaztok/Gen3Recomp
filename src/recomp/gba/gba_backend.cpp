@@ -23,6 +23,14 @@ void set_env(const char* key, const char* value) {
 #endif
 }
 
+void clear_env(const char* key) {
+#if defined(_WIN32)
+    _putenv_s(key, "");
+#else
+    unsetenv(key);
+#endif
+}
+
 std::string toml_escape(const std::string& value) {
     std::string out;
     out.reserve(value.size());
@@ -137,7 +145,7 @@ bool GbaSessionBackend::start() {
     if (std::getenv("GEN3RECOMP_SELFHEAL") != nullptr) {
         set_env("GBARECOMP_SELFHEAL_RECOMPILE", "1");
     } else if (std::getenv("GEN3RECOMP_DISABLE_SELFHEAL") != nullptr) {
-        unsetenv("GBARECOMP_SELFHEAL_RECOMPILE");
+        clear_env("GBARECOMP_SELFHEAL_RECOMPILE");
     } else {
         set_env("GBARECOMP_SELFHEAL_RECOMPILE", "1");
     }
@@ -190,7 +198,9 @@ bool GbaSessionBackend::start() {
     gbarecomp::RunOptions opts;
     opts.builtin_game_name = game_.display_name.c_str();
     opts.builtin_rom_sha1 = game_.sha1.c_str();
-    opts.launcher_save_path = save_path_.c_str();
+    // path::c_str() is wchar_t* on Windows; upstream expects UTF-8 char*.
+    const std::string save_path_utf8 = save_path_.string();
+    opts.launcher_save_path = save_path_utf8.c_str();
 
     spdlog::info("upstream config={} save_type={}", config_path.string(), game_.save_family);
     const int rc = gbarecomp::run_game(static_cast<int>(argv.size()), argv.data(), opts);

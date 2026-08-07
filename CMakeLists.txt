@@ -21,16 +21,28 @@ add_subdirectory(src/app)
 add_executable(gen3recomp src/main.cpp)
 target_link_libraries(gen3recomp PRIVATE gen3recomp_app)
 if(TARGET gbarecomp_runtime)
-    target_link_libraries(gen3recomp PRIVATE
-        "-Wl,--start-group"
+    set(_gen3_gba_libs
         gen3recomp_recomp
         gbarecomp_runtime
         gbarecomp_armv4t
         gbarecomp_gba
-        gbarecomp_debug
-        "-Wl,--end-group"
-        ${CMAKE_DL_LIBS}
-        pthread)
+        gbarecomp_debug)
+    if(APPLE)
+        # Apple ld has no --start-group/--end-group; list twice to break cycles.
+        target_link_libraries(gen3recomp PRIVATE
+            ${_gen3_gba_libs}
+            ${_gen3_gba_libs}
+            ${CMAKE_DL_LIBS})
+    elseif(MSVC)
+        target_link_libraries(gen3recomp PRIVATE ${_gen3_gba_libs})
+    else()
+        target_link_libraries(gen3recomp PRIVATE
+            "-Wl,--start-group"
+            ${_gen3_gba_libs}
+            "-Wl,--end-group"
+            ${CMAKE_DL_LIBS}
+            pthread)
+    endif()
 endif()
 if(TARGET gen3recomp_cart_artifact)
     get_target_property(_gen3_cart_loc gen3recomp_cart_artifact IMPORTED_LOCATION)
