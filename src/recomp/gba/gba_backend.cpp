@@ -163,8 +163,8 @@ bool GbaSessionBackend::start() {
     if (std::getenv("GBARECOMP_HANG_WATCHDOG") == nullptr) {
         set_env("GBARECOMP_HANG_WATCHDOG", "0");
     }
-    // Default player path skips eager heal-cache warm-load (see overlay_loader).
-    // Leave GBARECOMP_HEAL_EAGER_WARM unset unless measuring the old slow path.
+    // Upstream overlay_loader_init always warm-loads the heal cache. We do not
+    // patch that file; Play with a large existing cache may stall at startup.
 
     std::vector<std::string> args{
         "gen3recomp",

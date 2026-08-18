@@ -17,7 +17,11 @@ target_link_libraries(gen3recomp_cartutil PUBLIC gen3recomp_core gen3recomp_game
 target_compile_definitions(gen3recomp_cartutil PRIVATE
     "GEN3RECOMP_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
 
-set(GEN3_RECOMP_SOURCES gba/gba_provider.cpp gba/gba_backend.cpp gba/cart_artifact.cpp)
+set(GEN3_RECOMP_SOURCES
+    gba/gba_provider.cpp
+    gba/gba_backend.cpp
+    gba/cart_artifact.cpp
+    gba/cart_dispatch_host.cpp)
 
 if(GEN3RECOMP_CART_ARTIFACT AND EXISTS "${GEN3RECOMP_CART_ARTIFACT}")
     add_library(gen3recomp_cart_artifact SHARED IMPORTED GLOBAL)
@@ -62,6 +66,10 @@ target_compile_definitions(gen3recomp_recomp PRIVATE
     "GEN3RECOMP_SOURCE_DIR=\"${CMAKE_SOURCE_DIR}\"")
 if(UNIX)
     target_link_libraries(gen3recomp_recomp PUBLIC ${CMAKE_DL_LIBS})
+endif()
+if(NOT APPLE AND NOT MSVC)
+    set_source_files_properties(gba/cart_dispatch_host.cpp PROPERTIES
+        COMPILE_DEFINITIONS GEN3RECOMP_WRAP_CART_DISPATCH=1)
 endif()
 if(TARGET gbarecomp_runtime)
     target_link_libraries(gen3recomp_recomp PRIVATE gbarecomp_runtime)

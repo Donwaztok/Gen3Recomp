@@ -3,7 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 bios="${1:-$root/gba_bios.bin}"
-out="$root/third_party/gbarecomp/src/runtime/generated_bios"
+out="$root/generated/bios"
 recompile="$root/build/_gbarecomp/gba_recompile"
 
 if [[ ! -f "$bios" ]]; then

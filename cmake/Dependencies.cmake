@@ -54,40 +54,11 @@ if(NOT EXISTS "${GBARECOMP_DIR}/CMakeLists.txt")
         "Run: git submodule update --init --recursive")
 endif()
 
-# Host-required API not yet in the pinned upstream commit (cart dlopen dispatch
-# override + MSVC clz + optional heal warm). Applied idempotently so CI clean
-# checkouts and local dirty trees both work.
-set(_GEN3_GBARECOMP_PATCH
-    "${CMAKE_SOURCE_DIR}/third_party/patches/gbarecomp-gen3-host.patch")
-if(EXISTS "${_GEN3_GBARECOMP_PATCH}")
-    find_package(Git QUIET)
-    if(Git_FOUND)
-        execute_process(
-            COMMAND "${GIT_EXECUTABLE}" -C "${GBARECOMP_DIR}" apply --reverse --check
-                    "${_GEN3_GBARECOMP_PATCH}"
-            RESULT_VARIABLE _gen3_patch_already
-            OUTPUT_QUIET
-            ERROR_QUIET)
-        if(NOT _gen3_patch_already EQUAL 0)
-            execute_process(
-                COMMAND "${GIT_EXECUTABLE}" -C "${GBARECOMP_DIR}" apply
-                        "${_GEN3_GBARECOMP_PATCH}"
-                RESULT_VARIABLE _gen3_patch_apply
-                OUTPUT_VARIABLE _gen3_patch_out
-                ERROR_VARIABLE _gen3_patch_err)
-            if(NOT _gen3_patch_apply EQUAL 0)
-                message(FATAL_ERROR
-                    "Failed to apply ${_GEN3_GBARECOMP_PATCH} to gba-recomp submodule.\n"
-                    "${_gen3_patch_out}${_gen3_patch_err}")
-            endif()
-            message(STATUS "gen3recomp: applied gbarecomp-gen3-host.patch")
-        else()
-            message(STATUS "gen3recomp: gbarecomp-gen3-host.patch already applied")
-        endif()
-    else()
-        message(WARNING "gen3recomp: git not found; cannot apply gbarecomp-gen3-host.patch")
-    endif()
-endif()
+# Keep BIOS recomp output out of the submodule so configure never pairs a
+# tracked dispatch table with a leftover bios_recompiled.cpp, and so the
+# gba-recomp working tree stays pristine.
+set(GBARECOMP_GENERATED_BIOS_DIR "${CMAKE_SOURCE_DIR}/generated/bios"
+    CACHE PATH "Locally generated BIOS recomp (outside the gba-recomp submodule)" FORCE)
 
 set(GBARECOMP_ENABLE_MODS OFF CACHE BOOL "" FORCE)
 set(GBARECOMP_BUILD_ORACLE OFF CACHE BOOL "" FORCE)
@@ -188,6 +159,19 @@ endif()
 message(STATUS "gen3recomp: SDL2 for gba-recomp HostWindow — inc=${SDL2_INCLUDE_DIR} lib=${SDL2_LIBRARY}")
 
 add_subdirectory("${GBARECOMP_DIR}" "${CMAKE_BINARY_DIR}/_gbarecomp" EXCLUDE_FROM_ALL)
+
+# MSVC: gba-recomp bios_hle.cpp uses GCC __builtin_clz. Forced include only;
+# do not edit the submodule.
+if(MSVC)
+    get_target_property(_gen3_srcs gbarecomp_runtime SOURCES)
+    foreach(_gen3_src IN LISTS _gen3_srcs)
+        if(_gen3_src MATCHES "bios_hle\\.cpp$")
+            set_property(SOURCE "${_gen3_src}" TARGET_DIRECTORY gbarecomp_runtime
+                APPEND PROPERTY COMPILE_OPTIONS
+                "/FI${CMAKE_SOURCE_DIR}/src/recomp/gba/msvc_clz.h")
+        endif()
+    endforeach()
+endif()
 # Host packaging/CI builds gba_recompile explicitly; clear EXCLUDE_FROM_ALL so the
 # Visual Studio generator emits a reachable .vcxproj for --target gba_recompile.
 if(TARGET gba_recompile)

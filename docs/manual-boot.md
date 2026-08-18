@@ -15,7 +15,7 @@ MVP acceptance is title-screen boot for USA Ruby, Sapphire, and Emerald at playa
 ```sh
 cmake -S . -B build
 cmake --build build --target gba_recompile gen3recomp
-./scripts/recompile_user_bios.sh /path/to/gba_bios.bin
+./scripts/recompile_user_bios.sh /path/to/gba_bios.bin   # writes generated/bios/ (not the submodule)
 ctest --test-dir build --output-on-failure
 ```
 
@@ -30,13 +30,10 @@ ctest --test-dir build --output-on-failure
 3. Press **B** Build once if AOT is missing (progress in status line; can take several minutes)
 4. Press **Enter** Play when unlocked — this must **not** re-run cart Build
 5. Expect log: `activated cart artifact via dlopen` (`activate_ms=…`) and
-   `self_heal_recompile=ENABLED … eager_warm=0 warm_ms=…`
-6. With a populated heal cache, repeated Play should reach early boot in seconds.
-   An empty heal cache may hitch on the first session while overlays are compiled;
-   later Plays reuse those shards on demand (no full-cache warm at startup).
-
-Diagnostic: `GBARECOMP_HEAL_EAGER_WARM=1` restores the old “load every overlay DLL
-before the guest runs” behavior (slow; for measurement only).
+   `self_heal_recompile=ENABLED …`
+6. With a populated heal cache, upstream still warm-loads overlay DLLs at Play
+   start (the host does not patch that). An empty cache hitches while shards
+   compile on demand.
 
 ## CLI path
 
@@ -75,7 +72,7 @@ Configs: `data/emerald_usa.toml`, `data/ruby_usa.toml`, `data/sapphire_usa.toml`
 | Cart AOT `.so` | `<user-data>/cart_aot/<sha1>/abi3-linux-x64/libcart.so` |
 | IWRAM / heal DLLs | `<user-data>/recomp_cache/<sha1>/` (loaded on demand by default; not all shards at Play start) |
 | Mod enablement | `<user-data>/mods_enabled.txt` |
-| Eager heal warm (diag) | `GBARECOMP_HEAL_EAGER_WARM=1` — optional; slows every Play |
+| Heal cache warm | Always on in upstream `overlay_loader_init`; large caches stall Play start |
 
 End-user download/play/save docs: [player-guide.md](player-guide.md). MVP has no save states.
 

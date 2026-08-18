@@ -10,7 +10,7 @@
 #include <string>
 
 #if defined(GEN3RECOMP_HAS_GBARECOMP)
-#include "runtime_arm.h"
+#include "cart_dispatch_host.hpp"
 #endif
 
 #if !defined(_WIN32)

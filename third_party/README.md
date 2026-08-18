@@ -1,6 +1,6 @@
 # Third-party: gba-recomp
 
-gen3recomp tracks [gba-recomp](https://github.com/mstan/gbarecomp) as a **git submodule** at `third_party/gbarecomp`, pinned to the revision in `gbarecomp.pin`.
+gen3recomp tracks [gba-recomp](https://github.com/mstan/gbarecomp) as a **git submodule** at `third_party/gbarecomp`, pinned to the revision in `gbarecomp.pin`. Do not patch or edit files inside that checkout; host glue lives in `src/recomp/gba/` and BIOS recomp output in `generated/bios/`.
 
 Upstream license: PolyForm Noncommercial 1.0.0 (same family as this repository).
 

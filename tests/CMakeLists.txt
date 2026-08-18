@@ -21,6 +21,9 @@ if(TARGET gbarecomp_runtime)
             "-Wl,--end-group"
             ${CMAKE_DL_LIBS}
             pthread)
+        target_link_options(gen3recomp_tests PRIVATE
+            "LINKER:--wrap=overlay_try_dispatch"
+            "LINKER:--wrap=runtime_has_static_entry")
     endif()
 endif()
 if(TARGET gen3recomp_cart_artifact)
